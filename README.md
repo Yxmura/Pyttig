@@ -154,10 +154,25 @@ clone.
 
 Everything in the [Pyodide built-in set](https://pyodide.org/en/stable/usage/packages-in-pyodide.html)
 (numpy, pandas, scipy, scikit-learn, matplotlib, requests, httpx, Pillow,
-beautifulsoup4, lxml, pydantic, sqlalchemy, fastapi, openpyxl, sympy, …) plus
-**any pure-Python wheel from PyPI** via micropip. Not possible in a browser:
-raw sockets, subprocesses, servers, C extensions without a wasm build
-(clear error messages tell you when you hit one of these).
+beautifulsoup4, lxml, pydantic, sqlalchemy, fastapi, openpyxl, sympy, …), plus
+**any pure-Python wheel from PyPI** via micropip, plus **pure-Python source
+packages** (sdist-only projects are built in-process — no compiler involved)
+with their dependencies resolved against the Pyodide set as well.
+
+Verified with `npm run check:libs`, which installs and imports the PyPI
+download top 100 plus ~160 commonly used libraries against the built app:
+**193 of 218 import cleanly, and every failure is a documented browser
+limitation** — compiled C/C++/Rust extensions with no wasm build (torch,
+tensorflow, grpcio, greenlet, psycopg2, spacy, catboost, keras, litellm),
+desktop toolkits (tkinter, turtle, PyQt, wxPython, Kivy), OS/process APIs
+(psutil, playwright, scrapy's reactor) and host build tooling (pip, tox,
+pre-commit). The top-100 downloads list alone: 95/100 (4 impossible, plus
+`soupsieve` 2.8.x, which imports `bs4` without declaring it — use
+`beautifulsoup4`).
+
+Not possible in a browser at all: raw sockets, subprocesses, servers,
+compilers, and C extensions without a wasm build. When a package hits one of
+those limits the app says which one, instead of failing silently.
 
 ## Memory design
 

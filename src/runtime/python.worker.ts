@@ -3,6 +3,7 @@
 // Ruff diagnostics stay live in their own worker).
 
 import jediServerSource from "../lsp/jedi_server.py?raw";
+import sdistBuildSource from "./sdist_build.py?raw";
 import { PYODIDE_VERSION, pyodideModuleUrl } from "./pyodideVersion";
 import { extractPipInstalls } from "./pipLines";
 
@@ -91,9 +92,10 @@ async function ensureMicropip(): Promise<void> {
 /** Capture stdout+stderr of a Python snippet and re-emit it dimmed.
  *  Used for pip/loader noise; callers hold the load lock, so temporarily
  *  swapping the global handlers is safe. */
-async function runPythonDimmed(code: string): Promise<void> {
+async function runPythonDimmed(code: string): Promise<unknown> {
   let captured = "";
   let prevOutRestore: (() => void) | null = null;
+  let result: unknown;
   try {
     const prevOut = { batched: (s: string) => pipeStdout(s) };
     const prevErr = { batched: (s: string) => pipeStderr(s) };
@@ -103,13 +105,71 @@ async function runPythonDimmed(code: string): Promise<void> {
       pyodide.setStdout(prevOut);
       pyodide.setStderr(prevErr);
     };
-    await pyodide.runPythonAsync(code);
+    result = await pyodide.runPythonAsync(code);
   } finally {
     prevOutRestore?.();
   }
   for (const line of captured.split("\n")) {
     if (line.trim()) sysOut(line);
   }
+  return result;
+}
+
+/** Install one package: Pyodide distribution → PyPI wheel → built sdist.
+ *  Never call this while holding the load lock (it takes it per step). */
+async function installOne(name: string, note: (s: string) => void, depth = 0): Promise<void> {
+  if (!pyodide) throw new Error("Python runtime is not ready yet");
+  try {
+    await withLoadLock(() => pyodide!.loadPackage([name], { messageCallback: note, errorCallback: note }));
+    return;
+  } catch {
+    /* not in the Pyodide distribution */
+  }
+  try {
+    await withLoadLock(() =>
+      runPythonDimmed(`import micropip\nawait micropip.install(${JSON.stringify(name)})`),
+    );
+    return;
+  } catch {
+    /* no wheel for this platform */
+  }
+  await installFromSdist(name, note, depth);
+}
+
+/** Build a package's sdist here (pure-Python only) and install the result.
+ *  Dependencies micropip can't find are resolved through installOne, so a
+ *  built wheel can still pull e.g. aiohttp from the Pyodide distribution. */
+async function installFromSdist(name: string, note: (s: string) => void, depth: number): Promise<void> {
+  if (!pyodide) throw new Error("Python runtime is not ready yet");
+  if (depth > 4) throw new Error(`dependency chain too deep at ${name}`);
+  const outDir = "/tmp/pyttig-wheels";
+  const build = [
+    "import sys, importlib",
+    "if '/tmp' not in sys.path: sys.path.insert(0, '/tmp')",
+    "mod = sys.modules.get('pyttig_sdist_build') or importlib.import_module('pyttig_sdist_build')",
+    `await mod.build_wheel_from_sdist(${JSON.stringify(name)}, ${JSON.stringify(outDir)})`,
+  ].join("\n");
+  const wheelPath = String(await runPythonDimmed(build));
+  const url = `file://${wheelPath}`;
+  // Resolve the wheel's own dependencies first (micropip would only look at
+  // PyPI; our chain also knows the Pyodide distribution and can build sdists).
+  const depsRaw = String(
+    await runPythonDimmed(
+      `import sys, importlib, json\nif '/tmp' not in sys.path: sys.path.insert(0, '/tmp')\nmod = sys.modules.get('pyttig_sdist_build') or importlib.import_module('pyttig_sdist_build')\njson.dumps(mod.dependencies_of(${JSON.stringify(wheelPath)}))`,
+    ),
+  );
+  for (const dep of JSON.parse(depsRaw || "[]") as string[]) {
+    if (dep.toLowerCase() === name.toLowerCase()) continue;
+    sysOut(`  needs ${dep}`);
+    await installOne(dep, note, depth + 1);
+  }
+  await runPythonDimmed(`import micropip\nawait micropip.install(${JSON.stringify(url)}, deps=False)`);
+}
+
+/** Install a package micropip has no wheel for by building its sdist here.
+ *  Works for pure-Python packages; compiler-dependent builds fail clearly. */
+async function installFromSdistOnly(name: string): Promise<void> {
+  await installFromSdist(name, () => {}, 0);
 }
 
 function makeStdinReader() {
@@ -161,6 +221,7 @@ async function doInit(m: Extract<InMsg, { type: "init" }>) {
   pyodide.setStdout({ batched: (s: string) => pipeStdout(s) });
   pyodide.setStderr({ batched: (s: string) => pipeStderr(s) });
   pyodide.setStdin({ stdin: makeStdinReader(), isatty: false, error: false });
+  pyodide.FS.writeFile("/tmp/pyttig_sdist_build.py", sdistBuildSource);
   if (m.isolated && m.interruptBuffer) {
     pyodide.setInterruptBuffer(new Uint8Array(m.interruptBuffer));
   }
@@ -241,11 +302,7 @@ async function doRun(m: Extract<InMsg, { type: "run" }>) {
     sysOut(`pip install ${pip.packages.join(" ")}`);
     try {
       await ensureMicropip();
-      await withLoadLock(() =>
-        runPythonDimmed(
-          `import micropip as __pyttig_micropip\nawait __pyttig_micropip.install(${JSON.stringify(pip.packages)})`,
-        ),
-      );
+      for (const spec of pip.packages) await installOne(spec, (s) => sysOut(String(s)));
       sysOut("ok");
       post({ event: "pkg-installed", names: pip.packages });
     } catch (err) {
@@ -410,15 +467,15 @@ async function doEnsurePackages(names: string[], quiet = false) {
   for (const n of need) {
     post({ event: "pkg-status", name: n, state: "installing" });
     try {
-      await withLoadLock(() =>
-        runPythonDimmed(`import micropip\nawait micropip.install(${JSON.stringify(n)})`),
-      );
+      await installOne(n, note);
       installed.push(n);
       post({ event: "pkg-status", name: n, state: "done" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       failed.push(n);
       errors[n] = explainInstallError(msg);
+      // Full detail in the panel; the toast gets the short version.
+      for (const line of msg.split("\n").slice(-5)) if (line.trim()) sysOut(line);
       post({ event: "pkg-status", name: n, state: "error", error: errors[n] });
     }
   }
@@ -428,13 +485,28 @@ async function doEnsurePackages(names: string[], quiet = false) {
 /** Turn micropip's terse failures into something a student can act on. */
 function explainInstallError(msg: string): string {
   const flat = msg.replace(/\s+/g, " ").trim();
-  if (/Couldn't find a pure Python 3 wheel|No wheel|not found in PyPI/i.test(flat)) {
+  if (
+    /C compiler|clang|emcc|cc1plus|gcc|cargo|maturin|meson|ninja|Python\.h|arrayobject\.h|unable to execute|no such file or directory: 'cc'/i.test(flat)
+  ) {
+    return "needs compiled code and has no browser build";
+  }
+  // Prefer the exception line at the end of a traceback over the whole dump.
+  const lines = msg.split("\n").map((l) => l.trim()).filter(Boolean);
+  const reversed = [...lines].reverse();
+  const exc =
+    reversed.find((l) => /^[A-Za-z_][\w.]*(Error|Exception): /.test(l)) ??
+    reversed.find((l) => /^[A-Za-z_][\w.]*: /.test(l) && !/^See: /.test(l));
+  const short = exc ?? flat;
+  if (/Couldn't find a pure Python 3 wheel|No wheel|not found in PyPI/i.test(short)) {
     return "no wheel for the browser — it would need compiling C code, which browsers can't do";
   }
-  if (/Failed to fetch|NetworkError|Load failed/i.test(flat)) {
+  if (/no source distribution|is not on PyPI/i.test(short)) {
+    return "not available for the browser (no wheel, no source package on PyPI)";
+  }
+  if (/Failed to fetch|NetworkError|Load failed/i.test(short)) {
     return "download failed (check your connection)";
   }
-  return flat.slice(0, 160);
+  return short.slice(0, 200);
 }
 
 /** In-flight package work that a run must not overtake. */

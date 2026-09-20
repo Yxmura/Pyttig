@@ -513,7 +513,7 @@ export interface PkgInfo {
 export async function ensurePackages(names: string[]): Promise<EnsureResult> {
   await ensureWorker();
   pokeIdle();
-  shell.setPanel("packages");
+  shell.setPanel("terminal");
   const r = await request<EnsureResult>("ensure-packages", { names });
   rememberPackages(names.filter((n) => !r.failed.includes(n)));
   changed();

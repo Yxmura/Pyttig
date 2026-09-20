@@ -1,0 +1,405 @@
+{
+  "source": "https://hugovk.github.io/top-pypi-packages/top-pypi-packages-30-days.min.json",
+  "rows": [
+    {
+      "project": "boto3",
+      "downloads": 3206668324
+    },
+    {
+      "project": "packaging",
+      "downloads": 2253382953
+    },
+    {
+      "project": "typing-extensions",
+      "downloads": 1846201011
+    },
+    {
+      "project": "certifi",
+      "downloads": 1822727244
+    },
+    {
+      "project": "idna",
+      "downloads": 1801007240
+    },
+    {
+      "project": "urllib3",
+      "downloads": 1793872890
+    },
+    {
+      "project": "requests",
+      "downloads": 1695910251
+    },
+    {
+      "project": "charset-normalizer",
+      "downloads": 1661797776
+    },
+    {
+      "project": "setuptools",
+      "downloads": 1486486710
+    },
+    {
+      "project": "cryptography",
+      "downloads": 1425744760
+    },
+    {
+      "project": "cffi",
+      "downloads": 1257767516
+    },
+    {
+      "project": "pluggy",
+      "downloads": 1229331424
+    },
+    {
+      "project": "pygments",
+      "downloads": 1214923121
+    },
+    {
+      "project": "pyyaml",
+      "downloads": 1174219173
+    },
+    {
+      "project": "botocore",
+      "downloads": 1164509324
+    },
+    {
+      "project": "python-dateutil",
+      "downloads": 1150450470
+    },
+    {
+      "project": "six",
+      "downloads": 1148797562
+    },
+    {
+      "project": "pydantic",
+      "downloads": 1114195695
+    },
+    {
+      "project": "numpy",
+      "downloads": 1110814152
+    },
+    {
+      "project": "click",
+      "downloads": 1094853348
+    },
+    {
+      "project": "pycparser",
+      "downloads": 1065683604
+    },
+    {
+      "project": "anyio",
+      "downloads": 1044927535
+    },
+    {
+      "project": "pytest",
+      "downloads": 1038243019
+    },
+    {
+      "project": "pydantic-core",
+      "downloads": 1035750020
+    },
+    {
+      "project": "iniconfig",
+      "downloads": 1002671783
+    },
+    {
+      "project": "aiobotocore",
+      "downloads": 971712783
+    },
+    {
+      "project": "annotated-types",
+      "downloads": 956369075
+    },
+    {
+      "project": "h11",
+      "downloads": 940603758
+    },
+    {
+      "project": "attrs",
+      "downloads": 921755628
+    },
+    {
+      "project": "typing-inspection",
+      "downloads": 897262655
+    },
+    {
+      "project": "protobuf",
+      "downloads": 853495139
+    },
+    {
+      "project": "fsspec",
+      "downloads": 840621039
+    },
+    {
+      "project": "httpx",
+      "downloads": 818096438
+    },
+    {
+      "project": "markupsafe",
+      "downloads": 814913300
+    },
+    {
+      "project": "httpcore",
+      "downloads": 807678508
+    },
+    {
+      "project": "s3transfer",
+      "downloads": 807303601
+    },
+    {
+      "project": "python-dotenv",
+      "downloads": 798622367
+    },
+    {
+      "project": "platformdirs",
+      "downloads": 750459128
+    },
+    {
+      "project": "pandas",
+      "downloads": 739713944
+    },
+    {
+      "project": "jinja2",
+      "downloads": 728251038
+    },
+    {
+      "project": "pathspec",
+      "downloads": 726767827
+    },
+    {
+      "project": "grpcio-status",
+      "downloads": 709374205
+    },
+    {
+      "project": "filelock",
+      "downloads": 693704941
+    },
+    {
+      "project": "pip",
+      "downloads": 674827281
+    },
+    {
+      "project": "pyjwt",
+      "downloads": 669313991
+    },
+    {
+      "project": "starlette",
+      "downloads": 650552737
+    },
+    {
+      "project": "uvicorn",
+      "downloads": 646255716
+    },
+    {
+      "project": "litellm",
+      "downloads": 639214652
+    },
+    {
+      "project": "aiohttp",
+      "downloads": 624758174
+    },
+    {
+      "project": "tqdm",
+      "downloads": 621081224
+    },
+    {
+      "project": "jmespath",
+      "downloads": 620909175
+    },
+    {
+      "project": "rpds-py",
+      "downloads": 612337340
+    },
+    {
+      "project": "yarl",
+      "downloads": 610025617
+    },
+    {
+      "project": "jsonschema",
+      "downloads": 599937253
+    },
+    {
+      "project": "rich",
+      "downloads": 598954653
+    },
+    {
+      "project": "markdown-it-py",
+      "downloads": 597608992
+    },
+    {
+      "project": "multidict",
+      "downloads": 594350125
+    },
+    {
+      "project": "propcache",
+      "downloads": 580843621
+    },
+    {
+      "project": "s3fs",
+      "downloads": 580754186
+    },
+    {
+      "project": "fastapi",
+      "downloads": 559014587
+    },
+    {
+      "project": "referencing",
+      "downloads": 558106184
+    },
+    {
+      "project": "tomlkit",
+      "downloads": 557963499
+    },
+    {
+      "project": "frozenlist",
+      "downloads": 557582927
+    },
+    {
+      "project": "jsonschema-specifications",
+      "downloads": 554721405
+    },
+    {
+      "project": "pyasn1",
+      "downloads": 549863516
+    },
+    {
+      "project": "wheel",
+      "downloads": 549282263
+    },
+    {
+      "project": "websockets",
+      "downloads": 548886699
+    },
+    {
+      "project": "aiohappyeyeballs",
+      "downloads": 547041857
+    },
+    {
+      "project": "mdurl",
+      "downloads": 545972194
+    },
+    {
+      "project": "aiosignal",
+      "downloads": 542268483
+    },
+    {
+      "project": "google-auth",
+      "downloads": 539589080
+    },
+    {
+      "project": "pillow",
+      "downloads": 535067156
+    },
+    {
+      "project": "googleapis-common-protos",
+      "downloads": 528842518
+    },
+    {
+      "project": "pytz",
+      "downloads": 522121417
+    },
+    {
+      "project": "sniffio",
+      "downloads": 513235820
+    },
+    {
+      "project": "importlib-metadata",
+      "downloads": 512807261
+    },
+    {
+      "project": "trove-classifiers",
+      "downloads": 507622746
+    },
+    {
+      "project": "zipp",
+      "downloads": 505251805
+    },
+    {
+      "project": "opentelemetry-semantic-conventions",
+      "downloads": 502049227
+    },
+    {
+      "project": "annotated-doc",
+      "downloads": 500427001
+    },
+    {
+      "project": "virtualenv",
+      "downloads": 488396969
+    },
+    {
+      "project": "hatchling",
+      "downloads": 488051250
+    },
+    {
+      "project": "pydantic-settings",
+      "downloads": 482296926
+    },
+    {
+      "project": "tzdata",
+      "downloads": 482201452
+    },
+    {
+      "project": "wrapt",
+      "downloads": 478565469
+    },
+    {
+      "project": "ghapi",
+      "downloads": 477909197
+    },
+    {
+      "project": "greenlet",
+      "downloads": 474969702
+    },
+    {
+      "project": "opentelemetry-api",
+      "downloads": 471097243
+    },
+    {
+      "project": "huggingface-hub",
+      "downloads": 470151608
+    },
+    {
+      "project": "opentelemetry-sdk",
+      "downloads": 453052910
+    },
+    {
+      "project": "pyasn1-modules",
+      "downloads": 452849787
+    },
+    {
+      "project": "tenacity",
+      "downloads": 446739627
+    },
+    {
+      "project": "google-api-core",
+      "downloads": 446395816
+    },
+    {
+      "project": "regex",
+      "downloads": 435690564
+    },
+    {
+      "project": "pyarrow",
+      "downloads": 435274043
+    },
+    {
+      "project": "python-multipart",
+      "downloads": 434342637
+    },
+    {
+      "project": "textual",
+      "downloads": 430496348
+    },
+    {
+      "project": "openai",
+      "downloads": 425458267
+    },
+    {
+      "project": "grpcio",
+      "downloads": 423413696
+    },
+    {
+      "project": "soupsieve",
+      "downloads": 421804203
+    }
+  ]
+}

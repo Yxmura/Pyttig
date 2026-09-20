@@ -14,7 +14,8 @@
     "test:e2e": "playwright test",
     "test:proxy": "node scripts/test-proxy.mjs",
     "typecheck": "tsc --noEmit",
-    "check:libs": "node scripts/check-libs.mjs"
+    "check:libs": "node scripts/check-libs.mjs",
+    "probe:app": "node scripts/probe-app.mjs"
   },
   "dependencies": {
     "@astral-sh/ruff-wasm-web": "^0.15.22",

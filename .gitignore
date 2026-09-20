@@ -1,0 +1,10 @@
+node_modules/
+test-results/
+tests/e2e/shot.png
+playwright-report/
+.pyttig/
+.vercel/
+__pycache__/
+*.log
+.DS_Store
+Thumbs.db

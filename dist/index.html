@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Pyttig — a spicy, Python-focused IDE that runs entirely in your browser." />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#1e1e2e" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#eff1f5" media="(prefers-color-scheme: light)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Pyttig — spicy Python IDE" />
+    <meta property="og:description" content="Real CPython 3.14, packages, LSP and git — entirely in your browser. No installs, no servers." />
+    <meta property="og:image" content="./assets/logo-DlCz5H3Z.png" />
+    <meta name="twitter:card" content="summary" />
+    <title>Pyttig — spicy Python IDE</title>
+    <link rel="icon" type="image/png" href="./favicon.png" />
+    <link rel="apple-touch-icon" href="./favicon.png" />
+    <script type="module" crossorigin src="./assets/index-DpIX7Lsd.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-B88SzvFN.css">
+  </head>
+  <body>
+    <div id="app" aria-label="Pyttig IDE"></div>
+    <noscript>Pyttig needs JavaScript to run.</noscript>
+    <script>
+      // If the app doesn't boot (e.g. a stale page references deleted asset
+      // hashes after a redeploy), show a friendly recovery card instead of a
+      // blank screen. Inline styles on purpose: the CSS bundle may be missing.
+      (function () {
+        window.__pyttigBooted = false;
+        window.setTimeout(function () {
+          if (window.__pyttigBooted) return;
+          var el = document.createElement("div");
+          el.setAttribute("role", "alert");
+          el.style.cssText =
+            "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;" +
+            "background:#1e1e2e;color:#cdd6f4;font:14px/1.6 system-ui,sans-serif;text-align:center;padding:24px;z-index:9999";
+          el.innerHTML =
+            '<div style="max-width:520px">' +
+            '<div style="font-size:28px;margin-bottom:8px">🌶️</div>' +
+            '<div style="font-weight:700;font-size:16px;margin-bottom:6px">Pyttig could not finish loading</div>' +
+            '<div style="color:#a6adc8;margin-bottom:16px">A newer version may have been deployed, or an asset failed to load. ' +
+            "A hard refresh usually fixes it.</div>" +
+            '<button onclick="location.reload()" style="background:#89b4fa;color:#11111b;border:none;border-radius:3px;' +
+            'padding:9px 18px;font:600 13px system-ui,sans-serif;cursor:pointer">Reload</button></div>';
+          document.body.appendChild(el);
+        }, 8000);
+      })();
+    </script>
+  </body>
+</html>

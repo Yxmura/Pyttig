@@ -62,11 +62,11 @@ function setState(s: typeof state) {
 
 /** Detect the stdlib launcher (serves COOP/COEP + git proxy). */
 /** Fetch that can never hang boot: resolves to null on error or timeout. */
-async function fetchWithTimeout(url: string, ms: number): Promise<Response | null> {
+async function fetchWithTimeout(url: string, ms: number, init: RequestInit = {}): Promise<Response | null> {
   const ctrl = new AbortController();
   const timer = window.setTimeout(() => ctrl.abort(), ms);
   try {
-    return await fetch(url, { cache: "no-store", signal: ctrl.signal });
+    return await fetch(url, { cache: "no-store", ...init, signal: ctrl.signal });
   } catch {
     return null;
   } finally {
@@ -85,13 +85,32 @@ async function detectBackends(): Promise<{ launcher: boolean; hostedProxy: boole
   // /api/proxy — a 400-with-JSON answer means it exists. Timeout-bounded so a
   // hung endpoint can never hold up startup.
   const prefix = location.pathname.replace(/[^/]*$/, "");
-  const proxy = await fetchWithTimeout(`${prefix}api/proxy`, 1500);
-  let hostedProxy = false;
-  if (proxy && proxy.status !== 404 && (proxy.headers.get("content-type") ?? "").includes("application/json")) {
-    (window as unknown as { __pyttigProxy?: string }).__pyttigProxy = `${location.origin}${prefix}api/proxy?`;
-    hostedProxy = true;
+  const base = `${location.origin}${prefix}api/proxy`;
+  const setProxy = (url: string) => {
+    (window as unknown as { __pyttigProxy?: string }).__pyttigProxy = url;
+  };
+
+  // Preferred: the path form (/api/proxy/github.com/…) — a full URL in the
+  // query string gets rewritten by CDN edges, paths don't.
+  const pathProbe = await fetchWithTimeout(`${base}/__ping`, 1500, { method: "HEAD" });
+  if (pathProbe && (pathProbe.status === 204 || pathProbe.status === 200)) {
+    setProxy(base);
+    return { launcher: false, hostedProxy: true };
   }
-  return { launcher: false, hostedProxy };
+
+  // Older deployments only have the exact route (query form; the function
+  // decodes defensively, so this still works behind URL-rewriting edges).
+  const queryProbe = await fetchWithTimeout(base, 1500, { method: "HEAD" });
+  if (queryProbe) {
+    const ct = queryProbe.headers.get("content-type") ?? "";
+    const ok =
+      queryProbe.status === 204 || queryProbe.status === 200 || (queryProbe.status !== 404 && ct.includes("application/json"));
+    if (ok) {
+      setProxy(`${base}?`);
+      return { launcher: false, hostedProxy: true };
+    }
+  }
+  return { launcher: false, hostedProxy: false };
 }
 
 function spawnWorker(): Worker {

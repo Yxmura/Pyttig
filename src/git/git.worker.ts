@@ -122,12 +122,6 @@ function stats(isFile: boolean, size: number, mtimeMs: number) {
   };
 }
 
-function dlog(...args: unknown[]) {
-  if ((globalThis as unknown as { __GIT_DEBUG?: boolean }).__GIT_DEBUG) {
-    console.log("[gitfs]", ...args);
-  }
-}
-
 const promises = {
   async readFile(path: string, options?: { encoding?: string } | string): Promise<Uint8Array | string> {
     const { dir, name } = await parentOf(path, false);
@@ -320,7 +314,6 @@ function progress(id: number) {
 self.onmessage = async (e: MessageEvent<Msg>) => {
   const m = e.data;
   try {
-    console.log("[gitworker] op:", m.type, "dir:", m.dir);
     if (m.type === "init-worker") {
       ROOT = m.root as FileSystemDirectoryHandle;
       if (!ROOT || typeof (ROOT as unknown as { getDirectoryHandle?: unknown }).getDirectoryHandle !== "function") {

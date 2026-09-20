@@ -29,6 +29,33 @@ await check("OPTIONS preflight", async () => {
   if (r.status !== 204) throw new Error(`status ${r.status}`);
 });
 
+await check("HEAD capability probe is silent", async () => {
+  const r = await fetch(base, { method: "HEAD" });
+  if (r.status !== 204) throw new Error(`status ${r.status}`);
+});
+
+await check("path-form ping", async () => {
+  const r = await fetch(`${base}/api/proxy/__ping`, { method: "HEAD" });
+  if (r.status !== 204) throw new Error(`status ${r.status}`);
+});
+
+await check("path form (what the app uses on hosts)", async () => {
+  const r = await fetch(`${base}/api/proxy/github.com/octocat/Hello-World.git/info/refs?service=git-upload-pack`);
+  const text = await r.text();
+  if (r.status !== 200) throw new Error(`status ${r.status}`);
+  if (!text.includes("# service=git-upload-pack")) throw new Error("bad body");
+  return `${text.length} bytes`;
+});
+
+await check("query form with percent-encoded URL (Vercel edge behaviour)", async () => {
+  const encoded = encodeURIComponent("https://github.com/octocat/Hello-World.git/info/refs?service=git-upload-pack");
+  const r = await fetch(`${base}/api/proxy?${encoded}`);
+  const text = await r.text();
+  if (r.status !== 200) throw new Error(`status ${r.status}`);
+  if (!text.includes("# service=git-upload-pack")) throw new Error("bad body");
+  return `${text.length} bytes`;
+});
+
 await check("missing url → 400 json", async () => {
   const r = await fetch(base);
   if (r.status !== 400) throw new Error(`status ${r.status}`);

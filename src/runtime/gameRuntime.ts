@@ -6,10 +6,11 @@
 // (see looksLikeGame) and is torn down with the rest of the runtime.
 
 import gameRunnerSource from "./game_runner.py?raw";
+import turtleShimSource from "./turtle_shim.py?raw";
 import { extractPipInstalls } from "./pipLines";
 import { resolvePyodideUrls } from "./pyodideVersion";
 import { terminal } from "./terminal";
-import { looksLikeGame } from "./gameDetect";
+import { looksLikeGame, usesTurtle } from "./gameDetect";
 
 interface PyodideLike {
   version: string;
@@ -81,6 +82,7 @@ async function ensureRuntime(onNote: (line: string) => void): Promise<PyodideLik
     py.setStdout({ batched: (s) => terminal.write(dim(s)) });
     py.setStderr({ batched: (s) => terminal.write(dim(s)) });
     py.FS.writeFile("/tmp/pyttig_game_runner.py", gameRunnerSource);
+    py.FS.writeFile("/tmp/pyttig_turtle.py", turtleShimSource);
     pyodide = py;
     onNote(`game runtime ready · Pyodide ${py.version}`);
     return py;
@@ -125,11 +127,18 @@ export async function runGame(opts: GameRunOptions): Promise<void> {
     py.FS.writeFile(full, f.content);
   }
 
+  const turtleProgram = usesTurtle(opts.code, opts.files);
   const pip = extractPipInstalls(opts.code);
-  await py.loadPackagesFromImports(opts.code, {
-    messageCallback: opts.onNote,
-    errorCallback: opts.onNote,
-  });
+  // turtle programs don't import pygame, but the shim draws with it.
+  const scanCode = turtleProgram ? `import pygame\n${opts.code}` : opts.code;
+  try {
+    await py.loadPackagesFromImports(scanCode, {
+      messageCallback: opts.onNote,
+      errorCallback: opts.onNote,
+    });
+  } catch {
+    /* local modules and unknown imports are fine — same as the worker */
+  }
   if (pip.packages.length) {
     opts.onNote(`pip install ${pip.packages.join(" ")}`);
     await py.loadPackage("micropip");
@@ -145,15 +154,14 @@ export async function runGame(opts: GameRunOptions): Promise<void> {
   running = true;
   try {
     const runner = [
-      "import sys, importlib",
+      "import sys, os, importlib",
       "if '/tmp' not in sys.path: sys.path.insert(0, '/tmp')",
+      "os.chdir('/home/pyodide/workspace')",
       "gr = sys.modules.get('pyttig_game_runner') or importlib.import_module('pyttig_game_runner')",
       "__pyttig_frame = gr.__pyttig_frame",
-      `__pyttig_code = gr.prepare(${JSON.stringify(pip.code)}, ${JSON.stringify(opts.filename)})`,
+      `__pyttig_code = gr.prepare(${JSON.stringify(pip.code)}, ${JSON.stringify(opts.filename)}, turtle=${turtleProgram ? "True" : "False"})`,
       "globals().setdefault('__name__', '__main__')",
-      "__pyttig_result = eval(__pyttig_code, globals())",
-      "if __pyttig_result is not None:",
-      "    await __pyttig_result",
+      "await gr.run_program(__pyttig_code, globals())",
     ].join("\n");
     await py.runPythonAsync(runner);
   } finally {

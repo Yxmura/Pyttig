@@ -386,8 +386,9 @@ export async function runFile(): Promise<void> {
   const s = loadSettings();
   const args = s.runArgs.trim() ? s.runArgs.trim().split(/\s+/) : [];
   const stdinLines: string[] = [];
-  if (looksLikeGame(code)) {
-    await runGameFile(path, code);
+  const detectFiles = await mirrorFiles();
+  if (looksLikeGame(code, detectFiles)) {
+    await runGameFile(path, code, detectFiles);
     return;
   }
   shell.setPanel("terminal");
@@ -412,11 +413,14 @@ export async function runFile(): Promise<void> {
 }
 
 /** pygame programs get a real canvas on the main thread (game runtime). */
-async function runGameFile(path: string, code: string): Promise<void> {
+async function runGameFile(
+  path: string,
+  code: string,
+  files: { path: string; content: string }[],
+): Promise<void> {
   shell.setPanel("game");
-  terminal.write(`\x1b[2m[game] ${path} · pygame window in the Game panel\x1b[0m\r\n`);
+  terminal.write(`\x1b[2m[game] ${path} · game window in the Game panel\x1b[0m\r\n`);
   setState("running");
-  const files = await mirrorFiles();
   try {
     await runGame({
       code,

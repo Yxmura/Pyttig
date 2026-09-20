@@ -135,6 +135,7 @@ Chromebook-specific notes:
 - Packages panel: data-science / web / dev one-click stacks, install, uninstall
 - `matplotlib` figures captured into a Plots panel; program file writes sync back
 - pygame programs get a real game window in the Game panel (see below)
+- turtle programs draw in that same panel (own implementation, no Tkinter)
 - `requests`/`urllib` work (patched to the browser stack); `await pyfetch(...)` too
 
 **Git, deliberately minimal (isomorphic-git in a worker, OPFS on-disk format)**
@@ -165,7 +166,7 @@ download top 100 plus ~160 commonly used libraries against the built app:
 **193 of 218 import cleanly, and every failure is a documented browser
 limitation** — compiled C/C++/Rust extensions with no wasm build (torch,
 tensorflow, grpcio, greenlet, psycopg2, spacy, catboost, keras, litellm),
-desktop toolkits (tkinter, turtle, PyQt, wxPython, Kivy), OS/process APIs
+desktop toolkits (tkinter, PyQt, wxPython, Kivy), OS/process APIs
 (psutil, playwright, scrapy's reactor) and host build tooling (pip, tox,
 pre-commit). The top-100 downloads list alone: 95/100 (4 impossible, plus
 `soupsieve` 2.8.x, which imports `bs4` without declaring it — use
@@ -181,12 +182,16 @@ Every library the lesson repos actually import works in Pyttig:
 
 | Lesson | Library | Status |
 | --- | --- | --- |
+| P1 L3 | turtle | works: turtle draws in the Game panel |
+| P1 L8 | turtle | works (module + `from sterren_module import *`) |
 | P1 L9/L10 | pygame | works: real game window in the Game panel |
 | P2 L2/L3/L5 | requests, Pillow, numpy | works — even for sites without CORS headers, via the Pyttig proxy |
 | P2 L4 | fastapi | works; no server sockets, so test routes with `httpx.ASGITransport` and `async def` endpoints |
 | P2 L8 | discord.py | works (imports; a real bot needs a gateway connection) |
 | P2 L9/L10 | pygame | works: real game window in the Game panel |
-| P3 L1/L4/L5 | requests, beautifulsoup4 | works, including scraping `shop.codefever.be` |
+| P3 L1 | turtle, requests | works (keyboard-driven turtle too: `onkey`, `listen`, `mainloop`) |
+| P3 L2 | turtle | works (loops, fills, `turtle.screen.mainloop()`) |
+| P3 L4/L5 | requests, beautifulsoup4 | works, including scraping `shop.codefever.be` |
 | P3 L6/L7 | flask | works; use `app.test_client()` instead of `app.run()` |
 | P3 L8 | matplotlib, huggingface_hub | works |
 | P3 L9/L10 | pygame | works: real game window in the Game panel |
@@ -197,6 +202,16 @@ through the Pyttig proxy (the same one git uses), so lesson APIs
 (pokeapi, chucknorris, joke/bored/meme APIs, the school's Shopify site) answer
 even when they send no CORS headers. `pip install` traffic and the Pyodide CDN
 bypass the proxy — they are CORS-enabled already.
+
+**turtle lessons** work too. Tkinter cannot exist in a browser, so Pyttig
+ships its own turtle drawn with pygame on the same Game panel: the module-level
+drawing functions, `Turtle`/`Screen` objects, pen and fill state, shapes,
+`write()`, `speed()`, `done()`/`mainloop()`/`exitonclick()`, `listen()` with
+`onkey()`/`onscreenclick()`, and `textinput()`/`numinput()` dialogs. `done()`
+keeps the window open (Stop closes it), key handlers work, and a file that
+imports a lesson module which imports turtle is detected too. Not implemented:
+`getcanvas()` (no Tk canvas), image shapes via `register_shape()`, and
+`tracer()`/`update()` are no-ops because drawing is immediate.
 
 **pygame lessons** get a real game window. Pyodide's SDL support only works on
 the main thread with a canvas, so game files run in a small separate runtime

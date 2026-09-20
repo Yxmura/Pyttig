@@ -55,6 +55,9 @@ def _has_await(node: ast.AST) -> bool:
 class _Rewrite(ast.NodeTransformer):
     """Inject frame yields and await the blocking calls."""
 
+    def __init__(self, all_loops: bool = False) -> None:
+        self.all_loops = all_loops
+
     def visit_While(self, node: ast.While) -> ast.AST:
         self.generic_visit(node)
         node.body.append(ast.parse(f"await {FRAME}()").body[0])
@@ -62,7 +65,7 @@ class _Rewrite(ast.NodeTransformer):
 
     def visit_For(self, node: ast.For) -> ast.AST:
         self.generic_visit(node)
-        if _mentions_display(node):
+        if self.all_loops or _mentions_display(node):
             node.body.append(ast.parse(f"await {FRAME}()").body[0])
         return node
 
@@ -122,10 +125,10 @@ class _Asyncify(ast.NodeTransformer):
         return node
 
 
-def transform(source: str, filename: str):
+def transform(source: str, filename: str, all_loops: bool = False):
     """Return a code object for the program, rewritten for main-thread play."""
     tree = ast.parse(source, filename=filename)
-    tree = _Rewrite().visit(tree)
+    tree = _Rewrite(all_loops=all_loops).visit(tree)
     ast.fix_missing_locations(tree)
 
     # Converting a function to async can make its callers async too, so keep
@@ -161,9 +164,17 @@ def _should_stop() -> bool:
 
 async def __pyttig_frame() -> None:
     """Yield to the browser, pace the frame rate, honour Stop."""
+    import sys
+
     now = time.perf_counter()
     fps = _state["fps"]
-    if fps > 0:
+    turtle_delay = 0.0
+    turtle_mod = sys.modules.get("turtle")
+    if turtle_mod is not None and hasattr(turtle_mod, "__pyttig_delay"):
+        turtle_delay = turtle_mod.__pyttig_delay() / 1000.0
+    if turtle_delay > 0:
+        await asyncio.sleep(turtle_delay)
+    elif fps > 0:
         target = 1.0 / fps
         elapsed = now - _state["last"]
         if elapsed < target:
@@ -235,9 +246,46 @@ def install_patches() -> None:
     builtins.input = no_input
 
 
-def prepare(source: str, filename: str):
+TURTLE_SHIM = "/tmp/pyttig_turtle.py"
+
+
+def install_turtle() -> None:
+    """Make `import turtle` find the pygame-based implementation."""
+    import importlib.util
+    import sys
+
+    existing = sys.modules.get("turtle")
+    if existing is not None and getattr(existing, "__pyttig_turtle", False):
+        return
+    spec = importlib.util.spec_from_file_location("turtle", TURTLE_SHIM)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("turtle shim is missing")
+    module = importlib.util.module_from_spec(spec)
+    module.__pyttig_turtle = True
+    sys.modules["turtle"] = module
+    spec.loader.exec_module(module)
+
+
+async def run_program(code, globals_dict) -> None:
+    """Run a compiled program; a mainloop() call turns into the event pump."""
+    try:
+        result = eval(code, globals_dict)  # noqa: S307 - our own compiled code
+        if result is not None:
+            await result
+    except BaseException as exc:
+        if type(exc).__name__ == "_MainloopSignal":
+            import turtle as turtle_module
+
+            await turtle_module.__pyttig_pump()
+        else:
+            raise
+
+
+def prepare(source: str, filename: str, turtle: bool = False):
     """Patch pygame, then compile the program for the browser game loop."""
     install_patches()
+    if turtle:
+        install_turtle()
     _state["fps"] = 0.0
     _state["last"] = time.perf_counter()
-    return transform(source, filename)
+    return transform(source, filename, all_loops=turtle)

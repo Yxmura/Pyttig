@@ -19,12 +19,12 @@ test("hosted deployment: isolate, detect proxy, clone and pull", async ({ page }
 
   // Cross-origin isolation (stop button, interactive input, streaming).
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
-  // Serverless proxy auto-detected, in its path form (/api/proxy/<host>/…).
+  // Serverless proxy auto-detected (query form: /api/proxy?<url>).
   await expect
     .poll(async () => page.evaluate(() => (window as unknown as { __pyttigProxy?: string }).__pyttigProxy ?? null), {
       timeout: 15000,
     })
-    .toMatch(/\/api\/proxy$/);
+    .toContain("/api/proxy?");
 
   // Clone through the serverless proxy.
   await page.locator('.ab-btn[title="Source Control"]').click();

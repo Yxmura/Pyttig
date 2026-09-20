@@ -84,29 +84,18 @@ async function detectBackends(): Promise<{ launcher: boolean; hostedProxy: boole
   // Hosted deployments (e.g. Vercel) can ship the serverless git proxy at
   // /api/proxy — a 400-with-JSON answer means it exists. Timeout-bounded so a
   // hung endpoint can never hold up startup.
+  // The serverless proxy is reached as /api/proxy?<url>. The trailing "?" is
+  // deliberate: isomorphic-git appends the target URL verbatim after it. The
+  // function decodes defensively because CDN edges often re-encode the query
+  // (Vercel does; multi-segment paths do not route there).
   const prefix = location.pathname.replace(/[^/]*$/, "");
   const base = `${location.origin}${prefix}api/proxy`;
-  const setProxy = (url: string) => {
-    (window as unknown as { __pyttigProxy?: string }).__pyttigProxy = url;
-  };
-
-  // Preferred: the path form (/api/proxy/github.com/…) — a full URL in the
-  // query string gets rewritten by CDN edges, paths don't.
-  const pathProbe = await fetchWithTimeout(`${base}/__ping`, 1500, { method: "HEAD" });
-  if (pathProbe && (pathProbe.status === 204 || pathProbe.status === 200)) {
-    setProxy(base);
-    return { launcher: false, hostedProxy: true };
-  }
-
-  // Older deployments only have the exact route (query form; the function
-  // decodes defensively, so this still works behind URL-rewriting edges).
-  const queryProbe = await fetchWithTimeout(base, 1500, { method: "HEAD" });
-  if (queryProbe) {
-    const ct = queryProbe.headers.get("content-type") ?? "";
-    const ok =
-      queryProbe.status === 204 || queryProbe.status === 200 || (queryProbe.status !== 404 && ct.includes("application/json"));
+  const probe = await fetchWithTimeout(base, 1500, { method: "HEAD" });
+  if (probe) {
+    const ct = probe.headers.get("content-type") ?? "";
+    const ok = probe.status === 204 || probe.status === 200 || (probe.status !== 404 && ct.includes("application/json"));
     if (ok) {
-      setProxy(`${base}?`);
+      (window as unknown as { __pyttigProxy?: string }).__pyttigProxy = `${base}?`;
       return { launcher: false, hostedProxy: true };
     }
   }

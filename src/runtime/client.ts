@@ -12,6 +12,8 @@ import { terminal } from "./terminal";
 import { handleWorkerError, resolveWorkerSource } from "../app/workerGuard";
 import pythonWorkerUrl from "./python.worker.ts?worker&url";
 import { PYODIDE_VERSION, resolvePyodideUrls } from "./pyodideVersion";
+import { disposeGameRuntime, gameCanvas, gameRuntimeRunning, runGame, stopGame } from "./gameRuntime";
+import { looksLikeGame } from "./gameDetect";
 
 type Resolver = (v: { ok: boolean; result?: unknown; error?: string }) => void;
 
@@ -384,6 +386,10 @@ export async function runFile(): Promise<void> {
   const s = loadSettings();
   const args = s.runArgs.trim() ? s.runArgs.trim().split(/\s+/) : [];
   const stdinLines: string[] = [];
+  if (looksLikeGame(code)) {
+    await runGameFile(path, code);
+    return;
+  }
   shell.setPanel("terminal");
   terminal.write(`\x1b[2m[run] ${path} · Python ${pyVersion || PYODIDE_VERSION}\x1b[0m\r\n`);
   setState("running");
@@ -403,6 +409,36 @@ export async function runFile(): Promise<void> {
     stdinLines,
   });
   // Completion arrives as a run-done message (handled there).
+}
+
+/** pygame programs get a real canvas on the main thread (game runtime). */
+async function runGameFile(path: string, code: string): Promise<void> {
+  shell.setPanel("game");
+  terminal.write(`\x1b[2m[game] ${path} · pygame window in the Game panel\x1b[0m\r\n`);
+  setState("running");
+  const files = await mirrorFiles();
+  try {
+    await runGame({
+      code,
+      filename: path.split("/").pop() ?? path,
+      files,
+      onNote: (line) => terminal.write(`\x1b[90m${line}\x1b[0m\r\n`),
+    });
+    terminal.write(`\x1b[2m[done]\x1b[0m\r\n`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/PyttigStop|KeyboardInterrupt|\bstopped\b/i.test(msg)) {
+      terminal.write(`\x1b[33m[stopped]\x1b[0m\r\n`);
+    } else if (/SystemExit/i.test(msg)) {
+      terminal.write(`\x1b[2m[done]\x1b[0m\r\n`);
+    } else {
+      terminal.write(`\x1b[31m${msg}\x1b[0m\r\n`);
+      notify.error("The game stopped with an error — see the terminal.");
+    }
+  } finally {
+    setState("ready");
+    pokeIdle();
+  }
 }
 
 function handleRunDone(m: Record<string, unknown>) {
@@ -468,6 +504,11 @@ export async function runSelection(): Promise<void> {
 
 export async function stopRun(): Promise<void> {
   if (state !== "running") return;
+  if (gameRuntimeRunning()) {
+    stopGame();
+    terminal.write("\x1b[33mStopping the game...\x1b[0m\r\n");
+    return;
+  }
   if (sabIsolated && interruptBuf) {
     interruptBuf[0] = 2;
     // Also unblock a pending stdin wait.
@@ -491,6 +532,7 @@ export async function stopRun(): Promise<void> {
 
 export async function restartRuntime(): Promise<void> {
   if (state === "running") await stopRun();
+  disposeGameRuntime();
   teardownWorker();
   await ensureWorker();
   notify.success(`Python ${pyVersion} ready.`);
@@ -636,6 +678,19 @@ function renderTerminalPanel(host: HTMLElement) {
   terminal.fitView();
 }
 
+function renderGamePanel(host: HTMLElement) {
+  host.innerHTML = "";
+  const wrap = document.createElement("div");
+  wrap.className = "game-wrap";
+  wrap.id = "game-host";
+  const c = gameCanvas();
+  if (c) wrap.appendChild(c);
+  else {
+    wrap.innerHTML = `<div class="empty-note">No game yet. Open a pygame file and press Run (Ctrl+Enter).</div>`;
+  }
+  host.appendChild(wrap);
+}
+
 function renderPlotsPanel(host: HTMLElement) {
   host.innerHTML = "";
   const draw = () => {
@@ -708,6 +763,7 @@ export async function initRuntime(sh: Shell): Promise<void> {
   });
 
   sh.registerPanel({ id: "terminal", title: "Terminal", order: 1, render: renderTerminalPanel });
+  sh.registerPanel({ id: "game", title: "Game", order: 2, render: renderGamePanel });
   sh.registerPanel({ id: "plots", title: "Plots", order: 3, render: renderPlotsPanel });
 
   sh.setStatus({

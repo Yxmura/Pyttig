@@ -134,6 +134,7 @@ Chromebook-specific notes:
   matrix against the built app.
 - Packages panel: data-science / web / dev one-click stacks, install, uninstall
 - `matplotlib` figures captured into a Plots panel; program file writes sync back
+- pygame programs get a real game window in the Game panel (see below)
 - `requests`/`urllib` work (patched to the browser stack); `await pyfetch(...)` too
 
 **Git, deliberately minimal (isomorphic-git in a worker, OPFS on-disk format)**
@@ -180,15 +181,15 @@ Every library the lesson repos actually import works in Pyttig:
 
 | Lesson | Library | Status |
 | --- | --- | --- |
-| P1 L9/L10 | pygame | runs, but without a window (see below) |
+| P1 L9/L10 | pygame | works: real game window in the Game panel |
 | P2 L2/L3/L5 | requests, Pillow, numpy | works — even for sites without CORS headers, via the Pyttig proxy |
 | P2 L4 | fastapi | works; no server sockets, so test routes with `httpx.ASGITransport` and `async def` endpoints |
 | P2 L8 | discord.py | works (imports; a real bot needs a gateway connection) |
-| P2 L9/L10 | pygame | runs, but without a window (see below) |
+| P2 L9/L10 | pygame | works: real game window in the Game panel |
 | P3 L1/L4/L5 | requests, beautifulsoup4 | works, including scraping `shop.codefever.be` |
 | P3 L6/L7 | flask | works; use `app.test_client()` instead of `app.run()` |
 | P3 L8 | matplotlib, huggingface_hub | works |
-| P3 L9/L10 | pygame | runs, but without a window (see below) |
+| P3 L9/L10 | pygame | works: real game window in the Game panel |
 | Maistros 1/2 | numpy, scikit-learn, matplotlib, pandas, scipy, gymnasium, datasets, openai, langdetect, imbalanced-learn | works |
 
 **Network lessons** work out of the box: `requests` and `urllib` are routed
@@ -197,10 +198,18 @@ through the Pyttig proxy (the same one git uses), so lesson APIs
 even when they send no CORS headers. `pip install` traffic and the Pyodide CDN
 bypass the proxy — they are CORS-enabled already.
 
-**pygame lessons** import and run their logic (sprites, movement, collisions,
-prints), but a browser page can't give a background worker a window, so
-`pygame.display.set_mode()` stops with an explanation instead of freezing.
-The visual part needs the local launcher or a pygbag build.
+**pygame lessons** get a real game window. Pyodide's SDL support only works on
+the main thread with a canvas, so game files run in a small separate runtime
+(loaded on first use, a few seconds) that owns the canvas in the Game panel.
+Because a plain `while True:` loop would freeze the page, the program is
+rewritten before it runs: loops yield to the browser between frames,
+`clock.tick(fps)` paces them, and `time.sleep` / `pygame.time.wait` become
+awaits — so `def main(): while True: ...` and `asyncio.run(main())` keep
+working. Keyboard and mouse events reach the canvas, output still goes to the
+terminal, and Shift+F5 (Stop) ends the loop without reloading. Tracebacks keep
+pointing at your own line numbers. Not available in game mode: `input()` (run
+text programs with the normal Run button) and servers. P3 L7/L8 remain
+notebooks and stay in Colab.
 
 Not possible, with the reason:
 

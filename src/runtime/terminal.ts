@@ -74,13 +74,10 @@ export class PyTerminal {
     if (this.term) this.term.options.theme = currentTermTheme();
   }
 
-  attach(host: HTMLElement): void {
-    if (this.term && this.host === host) {
-      this.fit?.fit();
-      return;
-    }
-    this.host = host;
-    host.innerHTML = "";
+  /** The xterm instance exists from the start, so output written before the
+   *  panel is ever shown is kept and rendered when it is attached. */
+  private ensure(): Terminal {
+    if (this.term) return this.term;
     const term = new Terminal({
       convertEol: true,
       cursorBlink: true,
@@ -89,20 +86,51 @@ export class PyTerminal {
       theme: currentTermTheme(),
       allowProposedApi: true,
     });
+    term.loadAddon(new WebLinksAddon());
+    term.onData((data) => this.handleKey(data));
+    // Let app shortcuts through while the terminal has focus: a student
+    // watching a game or reading output must still be able to press Shift+F5.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== "keydown") return true;
+      const appShortcut =
+        e.key === "F5" || (e.ctrlKey && !e.altKey && e.key.toLowerCase() !== "c");
+      return !appShortcut;
+    });
+    this.term = term;
+    this.wireLinks();
+    return term;
+  }
+
+  attach(host: HTMLElement): void {
+    const term = this.ensure();
+    if (this.host === host) {
+      this.fit?.fit();
+      return;
+    }
+    if (term.element) {
+      // Move the live terminal (keeping scrollback) into the new host —
+      // switching panel tabs must not wipe what a student just ran.
+      this.host = host;
+      host.innerHTML = "";
+      host.appendChild(term.element);
+      try {
+        this.fit?.fit();
+      } catch { /* hidden */ }
+      term.refresh(0, term.rows - 1);
+      term.scrollToBottom();
+      return;
+    }
+    this.host = host;
+    host.innerHTML = "";
     const fit = new FitAddon();
     term.loadAddon(fit);
-    term.loadAddon(new WebLinksAddon());
     term.open(host);
-    this.term = term;
     this.fit = fit;
-    this.wireLinks();
     try {
       fit.fit();
     } catch {
       /* host may have no size yet; fitView() retries on show */
     }
-
-    term.onData((data) => this.handleKey(data));
     new ResizeObserver(() => {
       try {
         fit.fit();
@@ -140,11 +168,11 @@ export class PyTerminal {
   }
 
   write(data: string): void {
-    this.term?.write(data);
+    this.ensure().write(data);
   }
 
   clear(): void {
-    this.term?.clear();
+    this.ensure().clear();
   }
 
   fitView(): void {

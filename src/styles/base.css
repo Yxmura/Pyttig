@@ -352,6 +352,18 @@ input, select, textarea { font: inherit; color: var(--fg); }
 .empty-note { padding: 18px 16px; color: var(--fg-faint); font-size: 12.5px; line-height: 1.6; }
 .empty-note kbd { background: var(--bg-3); border-radius: 3px; padding: 2px 6px; font-family: var(--font-mono); font-size: 11px; color: var(--fg-dim); }
 
+/* ---------- Game panel (pygame canvas) ---------- */
+.game-wrap {
+  flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+  overflow: auto; padding: 12px; background: var(--bg-1);
+}
+.game-canvas {
+  max-width: 100%; max-height: 100%; image-rendering: pixelated; outline: none;
+  border-radius: 4px; box-shadow: 0 0 0 1px var(--bg-3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  background: #000;
+}
+.game-canvas:focus { box-shadow: 0 0 0 2px var(--accent, #89b4fa), 0 8px 24px rgba(0, 0, 0, 0.35); }
+
 /* ---------- Command palette ---------- */
 .overlay {
   position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 100;

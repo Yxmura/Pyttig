@@ -34,8 +34,12 @@ const DEFAULTS: KeyBinding[] = [
 
 function normalize(e: KeyboardEvent): string | null {
   // Ignore pure modifiers and typing in inputs (except a few global ones).
-  const tag = (e.target as HTMLElement)?.tagName;
-  const inField = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  const el = e.target as HTMLElement | null;
+  const tag = el?.tagName;
+  // xterm keeps focus in a hidden textarea; that must not block shortcuts
+  // like Shift+F5 while a student watches a game or the output.
+  const inTerminal = !!el?.closest?.(".xterm");
+  const inField = !inTerminal && (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT");
   const parts: string[] = [];
   if (e.ctrlKey || e.metaKey) parts.push("Ctrl");
   if (e.shiftKey) parts.push("Shift");

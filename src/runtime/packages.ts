@@ -5,7 +5,7 @@ import { registerCommands } from "../app/commands";
 import { notify } from "../app/toast";
 import { confirmDialog } from "../app/dialog";
 import { ensurePackages, listPackages, uninstallPackages, onRuntimeChange, type EnsureResult, type PkgInfo } from "./client";
-import { parseRequirements, REQUIREMENTS_FILE } from "./requirements";
+import { parseRequirements, REQUIREMENTS_FILE, splitRequirements } from "./requirements";
 
 const PRESETS: { name: string; desc: string; pkgs: string[] }[] = [
   {
@@ -27,6 +27,16 @@ const PRESETS: { name: string; desc: string; pkgs: string[] }[] = [
     name: "Dev tools",
     desc: "pytest · rich · tqdm · click · tabulate · faker · ipython",
     pkgs: ["pytest", "rich", "tqdm", "click", "tabulate", "faker", "ipython"],
+  },
+  {
+    name: "CodeFever P1–P3",
+    desc: "pygame · pillow · requests · bs4 · flask · fastapi · discord.py · gymnasium · numpy · matplotlib · scikit-learn · tqdm · datasets",
+    pkgs: [
+      "pygame", "pillow", "requests", "beautifulsoup4", "flask", "fastapi",
+      "discord.py", "gymnasium", "numpy", "matplotlib", "scikit-learn",
+      "tqdm", "huggingface-hub", "datasets", "openai",
+      "imbalanced-learn", "langdetect",
+    ],
   },
 ];
 
@@ -186,9 +196,17 @@ export function initPackages(shell: Shell): void {
           notify.info(`${REQUIREMENTS_FILE} lists no installable packages.`);
           return;
         }
+        const { install, skipped } = splitRequirements(names);
+        if (!install.length) {
+          notify.info(
+            `${REQUIREMENTS_FILE} only lists notebook/Jupyter plumbing — nothing to install here.`,
+          );
+          return;
+        }
         shell.showActivity("packages");
-        notify.info(`Installing ${names.length} package(s) from ${REQUIREMENTS_FILE}…`, { timeout: 6000 });
-        const r = await ensurePackages(names);
+        const skipNote = skipped.length ? ` (skipping ${skipped.length} notebook-only package(s))` : "";
+        notify.info(`Installing ${install.length} package(s) from ${REQUIREMENTS_FILE}${skipNote}…`, { timeout: 6000 });
+        const r = await ensurePackages(install);
         if (r.failed.length) {
           notify.warn(`Installed ${r.installed.length}; skipped — ${failureText(r)}`, {
             timeout: 15000,

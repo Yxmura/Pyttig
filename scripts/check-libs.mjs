@@ -118,9 +118,9 @@ for name in names:
     else:
         results.append({"name": name, "ok": False, "module": ",".join(tops[:3]), "error": first_err})
 _bad = [r for r in results if not r["ok"]]
-print("BADLIST " + ",".join(r["name"] for r in _bad))
 for _r in _bad:
     print("WHY " + _r["name"] + " :: " + _r["error"].replace(chr(10), " ")[:70])
+print("BADLIST " + ",".join(r["name"] for r in _bad))
 print("SUMMARY ok=%d fail=%d total=%d" % (len(results) - len(_bad), len(_bad), len(results)))
 `;
 
@@ -136,6 +136,9 @@ await page.addInitScript(() => {
     localStorage.setItem("pyttig.ui.panelH", "620");
   } catch { /* ignore */ }
 });
+if (process.env.CHECK_DEBUG) {
+  page.on("console", (m) => console.log(`[console:${m.type()}]`, m.text().slice(0, 300)));
+}
 await page.goto("http://127.0.0.1:8765/");
 await page.waitForSelector(".welcome-hero", { timeout: 20000 });
 
@@ -208,7 +211,9 @@ await page.waitForFunction(
   { timeout: 900000, polling: 1500 },
 );
 const term = await page.evaluate(() => document.getElementById("panel-body")?.innerText ?? "");
-// BADLIST may wrap across rendered lines; take everything up to the SUMMARY line.
+if (process.env.CHECK_DEBUG) console.log("---- terminal ----\n" + term.slice(-4000) + "\n------------------");
+// BADLIST may wrap across rendered lines; it is printed last, so take
+// everything from it up to the SUMMARY line (never the WHY lines before it).
 const lines = term.split("\n");
 const start = lines.findIndex((l) => l.includes("BADLIST "));
 const end = lines.findIndex((l, i) => i > start && l.includes("SUMMARY ok="));

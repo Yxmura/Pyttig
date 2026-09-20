@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRequirements } from "../../src/runtime/requirements";
+import { parseRequirements, splitRequirements } from "../../src/runtime/requirements";
 
 describe("parseRequirements", () => {
   it("handles the usual shapes", () => {
@@ -38,5 +38,23 @@ describe("parseRequirements", () => {
       "python-dateutil",
       "pillow_heif",
     ]);
+  });
+});
+
+describe("splitRequirements", () => {
+  it("drops notebook plumbing from Colab-frozen files", () => {
+    const { install, skipped } = splitRequirements([
+      "jupyter", "ipykernel", "pexpect", "ptyprocess", "appnope", "matplotlib-inline",
+      "pygame", "requests", "numpy", "soupsieve",
+    ]);
+    expect(install).toEqual(["pygame", "requests", "numpy"]);
+    expect(skipped).toContain("jupyter");
+    expect(skipped).toContain("pexpect");
+  });
+
+  it("keeps everything when nothing is notebook-only", () => {
+    const { install, skipped } = splitRequirements(["pandas", "flask"]);
+    expect(install).toEqual(["pandas", "flask"]);
+    expect(skipped).toEqual([]);
   });
 });

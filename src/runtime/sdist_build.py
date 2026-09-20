@@ -205,3 +205,44 @@ async def install_local_wheel(path: str, deps: bool = True) -> None:
 
 # Wheels built here are always installed from the virtual FS.
 _patch_local_wheel_fetch()
+
+
+def missing_dependency(dist_name: str) -> str:
+    """Import a distribution's top-level module and report a missing module.
+
+    Some packages ship incomplete metadata (soupsieve 2.8 imports bs4 without
+    declaring it) and the Pyodide lock occasionally lists fewer dependencies
+    than the wheel does (httpx without httpcore). Installing by name then
+    leaves an unusable package. We import it here and, if a module is missing,
+    the caller installs that through the normal chain and tries again.
+    """
+    import importlib
+    import importlib.metadata as md
+
+    try:
+        dist = md.distribution(dist_name)
+    except Exception:
+        return ""
+    tops: set[str] = set()
+    for f in dist.files or []:
+        head = str(f).replace("\\", "/").split("/")[0]
+        if head.startswith("..") or head.endswith((".dist-info", ".egg-info")):
+            continue
+        if head in ("bin", "share", "include", "Scripts", "__pycache__"):
+            continue
+        if head.endswith(".py"):
+            tops.add(head[:-3])
+        elif "." not in head:
+            tops.add(head)
+        elif ".so" in head:
+            tops.add(head.split(".")[0])
+    skip = {"setup", "conftest", "noxfile", "tasks", "scripts", "sitecustomize", "_distutils_hack", "tests", "test"}
+    for top in sorted(t for t in tops if t and t not in skip):
+        try:
+            importlib.import_module(top)
+            return ""
+        except ModuleNotFoundError as exc:
+            return getattr(exc, "name", "") or top
+        except Exception:
+            return ""  # broken for another reason — not a missing dependency
+    return ""

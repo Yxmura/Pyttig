@@ -1,4 +1,4 @@
-var A=`"""Pyttig Jedi language service.
+var C=`"""Pyttig Jedi language service.
 
 Runs inside the Pyodide worker. Exposes completion, hover, signature help,
 go-to-definition, references, rename, document symbols and syntax checking
@@ -219,7 +219,7 @@ def handle(op, params):
         return fn(**(params or {}))
     except Exception:  # noqa: BLE001
         return {"ok": False, "error": traceback.format_exc(limit=3)}
-`,J=`"""Build a wheel from a pure-Python sdist, inside the browser.
+`,$=`"""Build a wheel from a pure-Python sdist, inside the browser.
 
 There is no pip and no compiler here, but most sdists of pure-Python packages
 can be built in-process: download the tarball from PyPI, install the declared
@@ -426,33 +426,75 @@ async def install_local_wheel(path: str, deps: bool = True) -> None:
 
 # Wheels built here are always installed from the virtual FS.
 _patch_local_wheel_fetch()
-`;const L="314.0.7",$=e=>`https://cdn.jsdelivr.net/pyodide/v${e}/full/`;function B(e=L){return`${$(e)}pyodide.mjs`}function z(e){const n=[],s=e.split(/\r?\n/).map(i=>{const l=/^\s*[!%]\s*pip\s+install\s+(.+?)\s*$/.exec(i);if(!l)return i;for(const o of l[1].split(/\s+/))!o||o.startsWith("-")||n.push(o);return`# ${i.trim()}`});return{packages:[...new Set(n)],code:s.join(`
-`)}}let t=null,b=null,R=!1,g=-1,j=[],y=null,m="",k="";const d=(e,n)=>self.postMessage(e,n);function _(){m&&(d({event:"stdout",runId:g,data:m}),m=""),k&&(d({event:"stderr",runId:g,data:k}),k="")}function C(e){m+=e+`
-`,m.length>4096&&_()}function I(e){k+=e+`
-`,k.length>4096&&_()}function h(e){m+=`\x1B[90m${e}\x1B[0m
-`,m.length>4096&&_()}let q=Promise.resolve();function w(e){const n=q.then(e,e);return q=n.catch(()=>{}),n}async function E(){if(!t)throw new Error("Python runtime is not ready yet");await w(()=>t.loadPackage("micropip",{messageCallback:()=>{},errorCallback:()=>{}}))}async function v(e){let n="",r=null,s;try{const i={batched:o=>C(o)},l={batched:o=>I(o)};t.setStdout({batched:o=>{n+=o+`
+
+
+def missing_dependency(dist_name: str) -> str:
+    """Import a distribution's top-level module and report a missing module.
+
+    Some packages ship incomplete metadata (soupsieve 2.8 imports bs4 without
+    declaring it) and the Pyodide lock occasionally lists fewer dependencies
+    than the wheel does (httpx without httpcore). Installing by name then
+    leaves an unusable package. We import it here and, if a module is missing,
+    the caller installs that through the normal chain and tries again.
+    """
+    import importlib
+    import importlib.metadata as md
+
+    try:
+        dist = md.distribution(dist_name)
+    except Exception:
+        return ""
+    tops: set[str] = set()
+    for f in dist.files or []:
+        head = str(f).replace("\\\\", "/").split("/")[0]
+        if head.startswith("..") or head.endswith((".dist-info", ".egg-info")):
+            continue
+        if head in ("bin", "share", "include", "Scripts", "__pycache__"):
+            continue
+        if head.endswith(".py"):
+            tops.add(head[:-3])
+        elif "." not in head:
+            tops.add(head)
+        elif ".so" in head:
+            tops.add(head.split(".")[0])
+    skip = {"setup", "conftest", "noxfile", "tasks", "scripts", "sitecustomize", "_distutils_hack", "tests", "test"}
+    for top in sorted(t for t in tops if t and t not in skip):
+        try:
+            importlib.import_module(top)
+            return ""
+        except ModuleNotFoundError as exc:
+            return getattr(exc, "name", "") or top
+        except Exception:
+            return ""  # broken for another reason — not a missing dependency
+    return ""
+`;const I="314.0.7",J=e=>`https://cdn.jsdelivr.net/pyodide/v${e}/full/`;function B(e=I){return`${J(e)}pyodide.mjs`}function z(e){const n=[],s=e.split(/\r?\n/).map(i=>{const l=/^\s*[!%]\s*pip\s+install\s+(.+?)\s*$/.exec(i);if(!l)return i;for(const o of l[1].split(/\s+/))!o||o.startsWith("-")||n.push(o);return`# ${i.trim()}`});return{packages:[...new Set(n)],code:s.join(`
+`)}}const D={pygame:"pygame-ce",pil:"pillow",image:"pillow",bs4:"beautifulsoup4",sklearn:"scikit-learn",cv2:"opencv-python",yaml:"pyyaml",docx:"python-docx",pptx:"python-pptx",dateutil:"python-dateutil",dotenv:"python-dotenv",jwt:"pyjwt",openssl:"pyopenssl",crypto:"pycryptodome",serial:"pyserial",usb:"pyusb",discord:"discord.py",imblearn:"imbalanced-learn",skimage:"scikit-image",attr:"attrs",pkg_resources:"setuptools",levenshtein:"python-levenshtein",fitz:"pymupdf",google:"protobuf",win32com:"pywin32"};function W(e){return D[e.trim().toLowerCase()]??e.trim()}let t=null,y=null,N=!1,_=-1,T=[],g=null,m="",k="";const d=(e,n)=>self.postMessage(e,n);function w(){m&&(d({event:"stdout",runId:_,data:m}),m=""),k&&(d({event:"stderr",runId:_,data:k}),k="")}function L(e){m+=e+`
+`,m.length>4096&&w()}function A(e){k+=e+`
+`,k.length>4096&&w()}function h(e){m+=`\x1B[90m${e}\x1B[0m
+`,m.length>4096&&w()}let R=Promise.resolve();function b(e){const n=R.then(e,e);return R=n.catch(()=>{}),n}async function E(){if(!t)throw new Error("Python runtime is not ready yet");await b(()=>t.loadPackage("micropip",{messageCallback:()=>{},errorCallback:()=>{}}))}async function P(e){let n="",r=null,s;try{const i={batched:o=>L(o)},l={batched:o=>A(o)};t.setStdout({batched:o=>{n+=o+`
 `}}),t.setStderr({batched:o=>{n+=o+`
 `}}),r=()=>{t.setStdout(i),t.setStderr(l)},s=await t.runPythonAsync(e)}finally{r?.()}for(const i of n.split(`
-`))i.trim()&&h(i);return s}async function O(e,n,r=0){if(!t)throw new Error("Python runtime is not ready yet");try{await w(()=>t.loadPackage([e],{messageCallback:n,errorCallback:n}));return}catch{}try{await w(()=>v(`import micropip
-await micropip.install(${JSON.stringify(e)})`));return}catch{}await D(e,n,r)}async function D(e,n,r){if(!t)throw new Error("Python runtime is not ready yet");if(r>4)throw new Error(`dependency chain too deep at ${e}`);const i=["import sys, importlib","if '/tmp' not in sys.path: sys.path.insert(0, '/tmp')","mod = sys.modules.get('pyttig_sdist_build') or importlib.import_module('pyttig_sdist_build')",`await mod.build_wheel_from_sdist(${JSON.stringify(e)}, ${JSON.stringify("/tmp/pyttig-wheels")})`].join(`
-`),l=String(await v(i)),o=`file://${l}`,c=String(await v(`import sys, importlib, json
+`))i.trim()&&h(i);return s}async function j(e,n,r=0){if(!t)throw new Error("Python runtime is not ready yet");const s=W(e);try{await b(()=>t.loadPackage([s],{messageCallback:n,errorCallback:n}));return}catch{}let i=!1;try{await b(()=>P(`import micropip
+await micropip.install(${JSON.stringify(s)})`)),i=!0}catch{}i||await U(s,n,r),await M(s,n,r)}async function M(e,n,r){if(r>2)return;const s=["import sys, importlib","if '/tmp' not in sys.path: sys.path.insert(0, '/tmp')","mod = sys.modules.get('pyttig_sdist_build') or importlib.import_module('pyttig_sdist_build')",`mod.missing_dependency(${JSON.stringify(e)})`].join(`
+`);let i="";try{i=String(await P(s))}catch{return}!i||i===e||i.includes(".")||(h(`  also needs ${i}`),await j(i,n,r+1))}async function U(e,n,r){if(!t)throw new Error("Python runtime is not ready yet");if(r>4)throw new Error(`dependency chain too deep at ${e}`);const i=["import sys, importlib","if '/tmp' not in sys.path: sys.path.insert(0, '/tmp')","mod = sys.modules.get('pyttig_sdist_build') or importlib.import_module('pyttig_sdist_build')",`await mod.build_wheel_from_sdist(${JSON.stringify(e)}, ${JSON.stringify("/tmp/pyttig-wheels")})`].join(`
+`),l=String(await P(i)),o=`file://${l}`,c=String(await P(`import sys, importlib, json
 if '/tmp' not in sys.path: sys.path.insert(0, '/tmp')
 mod = sys.modules.get('pyttig_sdist_build') or importlib.import_module('pyttig_sdist_build')
-json.dumps(mod.dependencies_of(${JSON.stringify(l)}))`));for(const p of JSON.parse(c||"[]"))p.toLowerCase()!==e.toLowerCase()&&(h(`  needs ${p}`),await O(p,n,r+1));await v(`import micropip
-await micropip.install(${JSON.stringify(o)}, deps=False)`)}function W(){let e=[];const n=r=>{const s=new TextEncoder().encode(r+`
+json.dumps(mod.dependencies_of(${JSON.stringify(l)}))`));for(const p of JSON.parse(c||"[]"))p.toLowerCase()!==e.toLowerCase()&&(h(`  needs ${p}`),await j(p,n,r+1));await P(`import micropip
+await micropip.install(${JSON.stringify(o)}, deps=False)`)}function H(){let e=[];const n=r=>{const s=new TextEncoder().encode(r+`
 `);m+=r+`
-`;for(const i of s)e.push(i)};return()=>{for(;;){if(e.length)return e.shift();if(j.length){n(j.shift());continue}if(y){d({event:"input-request",runId:g}),Atomics.store(y.meta,0,0),Atomics.wait(y.meta,0,0);const r=Atomics.load(y.meta,1);if(r>0){const s=y.buf.slice(0,r),i=new TextDecoder().decode(s).replace(/\r?\n$/,"");_(),n(i);continue}return null}return null}}}async function U(e){t=await(await import(e.moduleURL||B(L))).loadPyodide({indexURL:e.indexURL,stdout:i=>{m+=i+`
+`;for(const i of s)e.push(i)};return()=>{for(;;){if(e.length)return e.shift();if(T.length){n(T.shift());continue}if(g){d({event:"input-request",runId:_}),Atomics.store(g.meta,0,0),Atomics.wait(g.meta,0,0);const r=Atomics.load(g.meta,1);if(r>0){const s=g.buf.slice(0,r),i=new TextDecoder().decode(s).replace(/\r?\n$/,"");w(),n(i);continue}return null}return null}}}async function Z(e){t=await(await import(e.moduleURL||B(I))).loadPyodide({indexURL:e.indexURL,stdout:i=>{m+=i+`
 `},stderr:i=>{k+=i+`
-`}}),t.setStdout({batched:i=>C(i)}),t.setStderr({batched:i=>I(i)}),t.setStdin({stdin:W(),isatty:!1,error:!1}),t.FS.writeFile("/tmp/pyttig_sdist_build.py",J),e.isolated&&e.interruptBuffer&&t.setInterruptBuffer(new Uint8Array(e.interruptBuffer)),e.isolated&&e.stdinBuffer&&e.stdinMeta&&(y={buf:new Uint8Array(e.stdinBuffer),meta:new Int32Array(e.stdinMeta)});try{await w(()=>t.loadPackage("pyodide-http",{messageCallback:()=>{},errorCallback:()=>{}})),await t.runPythonAsync(`import pyodide_http
+`}}),t.setStdout({batched:i=>L(i)}),t.setStderr({batched:i=>A(i)}),t.setStdin({stdin:H(),isatty:!1,error:!1}),t.FS.writeFile("/tmp/pyttig_sdist_build.py",$),e.isolated&&e.interruptBuffer&&t.setInterruptBuffer(new Uint8Array(e.interruptBuffer)),e.isolated&&e.stdinBuffer&&e.stdinMeta&&(g={buf:new Uint8Array(e.stdinBuffer),meta:new Int32Array(e.stdinMeta)});try{await b(()=>t.loadPackage("pyodide-http",{messageCallback:()=>{},errorCallback:()=>{}})),await t.runPythonAsync(`import pyodide_http
 pyodide_http.patch_all()`)}catch{}try{await t.runPythonAsync(`import matplotlib
 matplotlib.use('Agg')`)}catch{}return{version:await t.runPythonAsync(`import sys
-sys.version.split()[0]`),isolated:e.isolated,sabStdin:!!y}}function N(e){const n=new Map;if(!t)return n;const r=t.FS,s=i=>{let l;try{l=r.readdir(i).filter(o=>o!=="."&&o!=="..")}catch{return}for(const o of l){const c=`${i}/${o}`;try{const p=r.stat(c);r.isDir(p.mode)?s(c):n.set(c,`${p.size}:${Number(p.mtime)}`)}catch{}}};return s(e),n}async function M(e){if(!t)throw new Error("Python runtime is not ready yet");await T,g=e.runId,j=[...e.stdinLines];const n="/home/pyodide/workspace";t.FS.mkdirTree(n);for(const a of e.files){const u=`${n}/${a.path}`,f=u.split("/").slice(0,-1).join("/");t.FS.mkdirTree(f),t.FS.writeFile(u,a.content)}const r=N(n),s=z(e.code);if(s.packages.length){h(`pip install ${s.packages.join(" ")}`);try{await E();for(const a of s.packages)await O(a,u=>h(String(u)));h("ok"),d({event:"pkg-installed",names:s.packages})}catch(a){h(`pip install failed: ${a instanceof Error?a.message:a}`)}m+=`
-`}let i=0;const l=a=>{i++,h(String(a))};try{await w(()=>t.loadPackagesFromImports(s.code,{messageCallback:l,errorCallback:l}))}catch{}i&&(m+=`
+sys.version.split()[0]`),isolated:e.isolated,sabStdin:!!g}}function q(e){const n=new Map;if(!t)return n;const r=t.FS,s=i=>{let l;try{l=r.readdir(i).filter(o=>o!=="."&&o!=="..")}catch{return}for(const o of l){const c=`${i}/${o}`;try{const p=r.stat(c);r.isDir(p.mode)?s(c):n.set(c,`${p.size}:${Number(p.mtime)}`)}catch{}}};return s(e),n}async function Y(e){if(!t)throw new Error("Python runtime is not ready yet");await O,_=e.runId,T=[...e.stdinLines];const n="/home/pyodide/workspace";t.FS.mkdirTree(n);for(const a of e.files){const u=`${n}/${a.path}`,f=u.split("/").slice(0,-1).join("/");t.FS.mkdirTree(f),t.FS.writeFile(u,a.content)}const r=q(n),s=z(e.code);if(s.packages.length){h(`pip install ${s.packages.join(" ")}`);try{await E();for(const a of s.packages)await j(a,u=>h(String(u)));h("ok"),d({event:"pkg-installed",names:s.packages})}catch(a){h(`pip install failed: ${a instanceof Error?a.message:a}`)}m+=`
+`}let i=0;const l=a=>{i++,h(String(a))};try{await b(()=>t.loadPackagesFromImports(s.code,{messageCallback:l,errorCallback:l}))}catch{}i&&(m+=`
 `);try{await t.runPythonAsync(`import sys, os
 os.chdir('/home/pyodide/workspace')`);const a=`import sys as __pyttig_sys
-__pyttig_sys.argv = [${[e.filename,...e.args].map(f=>JSON.stringify(f)).join(", ")}]`;if(await t.runPythonAsync(a),!e.keepNs||!b){try{b?.destroy?.()}catch{}b=t.globals.get("dict")()}(await t.runPythonAsync(s.code,{filename:e.filename,globals:b}))?.destroy?.()}catch(a){_();const f=(a instanceof Error?a.message:String(a)).replace(/^PythonError:\s*/,"");d({event:"stderr",runId:g,data:f+(f.endsWith(`
+__pyttig_sys.argv = [${[e.filename,...e.args].map(v=>JSON.stringify(v)).join(", ")}]`;if(await t.runPythonAsync(a),!e.keepNs||!y){try{y?.destroy?.()}catch{}y=t.globals.get("dict")()}const u=y;u.set("__name__","__main__"),u.set("__file__",`${n}/${e.filename}`),u.set("__package__",null),(await t.runPythonAsync(s.code,{filename:e.filename,globals:y}))?.destroy?.()}catch(a){w();const f=(a instanceof Error?a.message:String(a)).replace(/^PythonError:\s*/,"");d({event:"stderr",runId:_,data:f+(f.endsWith(`
 `)?"":`
-`)});const S=/ModuleNotFoundError: No module named '([^']+)'/.exec(f)?.[1];S&&d({event:"missing-module",runId:g,name:S.split(".")[0]})}finally{_()}const o=[];try{await t.runPythonAsync(`
+`)});const v=/ModuleNotFoundError: No module named '([^']+)'/.exec(f)?.[1];v&&d({event:"missing-module",runId:_,name:v.split(".")[0]})}finally{w()}const o=[];try{await t.runPythonAsync(`
 import io, os
 __pyttig_plots = []
 try:
@@ -466,11 +508,11 @@ try:
     plt.close('all')
 except Exception:
     pass
-`);const a=t.runPython("__pyttig_plots").toJs();for(const u of a){const f=t.FS.readFile(u);o.push({name:u.split("/").pop()??"figure.png",png:f.buffer})}}catch{}const c=N(n),p=[];let x=0;for(const[a,u]of c){if(r.get(a)===u)continue;const f=a.slice(n.length+1);try{if(t.FS.stat(a).size>5*1024*1024)continue;if(x>10*1024*1024)break;const F=t.FS.readFile(a);x+=F.length,p.push({path:f,content:F.buffer})}catch{}}const P=o.map(a=>a.png).concat(p.map(a=>a.content));d({id:e.id,ok:!0,result:{plots:o,changed:p},runId:g,type:"run-done"},P)}async function H(){if(!R){if(!t)throw new Error("Python runtime is not ready yet");await w(()=>t.loadPackage(["jedi","parso"],{messageCallback:()=>{},errorCallback:()=>{}})),await t.runPythonAsync(A+`
-__pyttig_lsp_ready = True`),await t.runPythonAsync("handle('init', {})"),R=!0}}async function Z(e){await H();const n=JSON.stringify(e.params);t.globals.set("__pyttig_params",n);const r=await t.runPythonAsync(`import json as __json
+`);const a=t.runPython("__pyttig_plots").toJs();for(const u of a){const f=t.FS.readFile(u);o.push({name:u.split("/").pop()??"figure.png",png:f.buffer})}}catch{}const c=q(n),p=[];let x=0;for(const[a,u]of c){if(r.get(a)===u)continue;const f=a.slice(n.length+1);try{if(t.FS.stat(a).size>5*1024*1024)continue;if(x>10*1024*1024)break;const F=t.FS.readFile(a);x+=F.length,p.push({path:f,content:F.buffer})}catch{}}const S=o.map(a=>a.png).concat(p.map(a=>a.content));d({id:e.id,ok:!0,result:{plots:o,changed:p},runId:_,type:"run-done"},S)}async function G(){if(!N){if(!t)throw new Error("Python runtime is not ready yet");await b(()=>t.loadPackage(["jedi","parso"],{messageCallback:()=>{},errorCallback:()=>{}})),await t.runPythonAsync(C+`
+__pyttig_lsp_ready = True`),await t.runPythonAsync("handle('init', {})"),N=!0}}async function Q(e){await G();const n=JSON.stringify(e.params);t.globals.set("__pyttig_params",n);const r=await t.runPythonAsync(`import json as __json
 __r = handle(${JSON.stringify(e.op)}, __json.loads(__pyttig_params))
-__r`);let s;try{s=r?.toJs?.({dict_converter:Object.fromEntries})??r}finally{r?.destroy?.()}return s}async function Y(e,n=!1){if(!t)throw new Error("Python runtime is not ready yet");const r=n?()=>{}:c=>h(String(c)),s=[];try{const c=t.runPython("list(__import__('sys').modules)").toJs();for(const p of e)c.includes(p)||s.push(p)}catch{s.push(...e)}if(s.length)try{return await w(()=>t.loadPackage(s,{messageCallback:r,errorCallback:r})),{installed:s,failed:[],errors:{}}}catch{}const i=[],l=[],o={};await E();for(const c of s){d({event:"pkg-status",name:c,state:"installing"});try{await O(c,r),i.push(c),d({event:"pkg-status",name:c,state:"done"})}catch(p){const x=p instanceof Error?p.message:String(p);l.push(c),o[c]=G(x);for(const P of x.split(`
-`).slice(-5))P.trim()&&h(P);d({event:"pkg-status",name:c,state:"error",error:o[c]})}}return{installed:i,failed:l,errors:o}}function G(e){const n=e.replace(/\s+/g," ").trim();if(/C compiler|clang|emcc|cc1plus|gcc|cargo|maturin|meson|ninja|Python\.h|arrayobject\.h|unable to execute|no such file or directory: 'cc'/i.test(n))return"needs compiled code and has no browser build";const s=[...e.split(`
-`).map(o=>o.trim()).filter(Boolean)].reverse(),l=s.find(o=>/^[A-Za-z_][\w.]*(Error|Exception): /.test(o))??s.find(o=>/^[A-Za-z_][\w.]*: /.test(o)&&!/^See: /.test(o))??n;return/Couldn't find a pure Python 3 wheel|No wheel|not found in PyPI/i.test(l)?"no wheel for the browser — it would need compiling C code, which browsers can't do":/no source distribution|is not on PyPI/i.test(l)?"not available for the browser (no wheel, no source package on PyPI)":/Failed to fetch|NetworkError|Load failed/i.test(l)?"download failed (check your connection)":l.slice(0,200)}let T=Promise.resolve();self.onmessage=async e=>{const n=e.data;try{switch(n.type){case"init":{const r=await U(n);d({id:n.id,ok:!0,result:r});break}case"run":{await M(n);break}case"lsp":{const r=await Z(n);d({id:n.id,ok:!0,result:r});break}case"ensure-packages":{const r=Y(n.names,n.quiet);T=Promise.allSettled([T,r]);const s=await r;d({id:n.id,ok:!0,result:s});break}case"list-packages":{await E();const r=await t.runPythonAsync(`import micropip, json
+__r`);let s;try{s=r?.toJs?.({dict_converter:Object.fromEntries})??r}finally{r?.destroy?.()}return s}async function V(e,n=!1){if(!t)throw new Error("Python runtime is not ready yet");const r=n?()=>{}:c=>h(String(c)),s=[];try{const c=t.runPython("list(__import__('sys').modules)").toJs();for(const p of e)c.includes(p)||s.push(p)}catch{s.push(...e)}if(s.length)try{return await b(()=>t.loadPackage(s,{messageCallback:r,errorCallback:r})),{installed:s,failed:[],errors:{}}}catch{}const i=[],l=[],o={};await E();for(const c of s){d({event:"pkg-status",name:c,state:"installing"});try{await j(c,r),i.push(c),d({event:"pkg-status",name:c,state:"done"})}catch(p){const x=p instanceof Error?p.message:String(p);l.push(c),o[c]=K(x);for(const S of x.split(`
+`).slice(-5))S.trim()&&h(S);d({event:"pkg-status",name:c,state:"error",error:o[c]})}}return{installed:i,failed:l,errors:o}}function K(e){const n=e.replace(/\s+/g," ").trim();if(/C compiler|clang|emcc|cc1plus|gcc|cargo|maturin|meson|ninja|Python\.h|arrayobject\.h|unable to execute|no such file or directory: 'cc'/i.test(n))return"needs compiled code and has no browser build";const s=[...e.split(`
+`).map(o=>o.trim()).filter(Boolean)].reverse(),l=s.find(o=>/^[A-Za-z_][\w.]*(Error|Exception): /.test(o))??s.find(o=>/^[A-Za-z_][\w.]*: /.test(o)&&!/^See: /.test(o))??n;return/Couldn't find a pure Python 3 wheel|No wheel|not found in PyPI/i.test(l)?"no wheel for the browser — it would need compiling C code, which browsers can't do":/no source distribution|is not on PyPI/i.test(l)?"not available for the browser (no wheel, no source package on PyPI)":/Failed to fetch|NetworkError|Load failed/i.test(l)?"download failed (check your connection)":l.slice(0,200)}let O=Promise.resolve();self.onmessage=async e=>{const n=e.data;try{switch(n.type){case"init":{const r=await Z(n);d({id:n.id,ok:!0,result:r});break}case"run":{await Y(n);break}case"lsp":{const r=await Q(n);d({id:n.id,ok:!0,result:r});break}case"ensure-packages":{const r=V(n.names,n.quiet);O=Promise.allSettled([O,r]);const s=await r;d({id:n.id,ok:!0,result:s});break}case"list-packages":{await E();const r=await t.runPythonAsync(`import micropip, json
 json.dumps([{'name': v.name, 'version': v.version, 'source': str(getattr(v, 'source', ''))} for v in micropip.list().values()])`),s=JSON.parse(r),i=new Set(s.map(o=>o.name.toLowerCase())),l=new Set(["micropip","jedi","parso","pyodide-http","packaging","pyodide-py"]);for(const[o,c]of Object.entries(t.loadedPackages??{})){const p=o.toLowerCase();i.has(p)||l.has(p)||s.push({name:o,version:String(c),source:"pyodide"})}s.sort((o,c)=>o.name.localeCompare(c.name)),d({id:n.id,ok:!0,result:s});break}case"uninstall":{await E(),await t.runPythonAsync(`import micropip
-micropip.uninstall(${JSON.stringify(n.names)})`),d({id:n.id,ok:!0,result:{removed:n.names}});break}case"reset":{try{b?.destroy?.()}catch{}b=null,d({id:n.id,ok:!0,result:{}});break}case"sync-files":{const r="/home/pyodide/workspace";t.FS.mkdirTree(r);for(const s of n.files)try{const i=`${r}/${s.path}`;t.FS.mkdirTree(i.split("/").slice(0,-1).join("/")),t.FS.writeFile(i,s.content)}catch{}d({id:n.id,ok:!0,result:{files:n.files.length}});break}case"memory":{let r=0;try{r=t?._module?.HEAPU8?.length??0}catch{}d({id:n.id,ok:!0,result:{wasm:r,loaded:!!t}});break}case"ping":{d({id:n.id,ok:!!t});break}}}catch(r){_(),d({id:n.id??-1,ok:!1,error:r instanceof Error?r.message:String(r)})}};
+micropip.uninstall(${JSON.stringify(n.names)})`),d({id:n.id,ok:!0,result:{removed:n.names}});break}case"reset":{try{y?.destroy?.()}catch{}y=null,d({id:n.id,ok:!0,result:{}});break}case"sync-files":{const r="/home/pyodide/workspace";t.FS.mkdirTree(r);for(const s of n.files)try{const i=`${r}/${s.path}`;t.FS.mkdirTree(i.split("/").slice(0,-1).join("/")),t.FS.writeFile(i,s.content)}catch{}d({id:n.id,ok:!0,result:{files:n.files.length}});break}case"memory":{let r=0;try{r=t?._module?.HEAPU8?.length??0}catch{}d({id:n.id,ok:!0,result:{wasm:r,loaded:!!t}});break}case"ping":{d({id:n.id,ok:!!t});break}}}catch(r){w(),d({id:n.id??-1,ok:!1,error:r instanceof Error?r.message:String(r)})}};

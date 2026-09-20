@@ -6,6 +6,7 @@ import jediServerSource from "../lsp/jedi_server.py?raw";
 import sdistBuildSource from "./sdist_build.py?raw";
 import { PYODIDE_VERSION, pyodideModuleUrl } from "./pyodideVersion";
 import { extractPipInstalls } from "./pipLines";
+import { resolvePackageName } from "./packageAliases";
 
 interface RunFile {
   path: string;
@@ -119,21 +120,46 @@ async function runPythonDimmed(code: string): Promise<unknown> {
  *  Never call this while holding the load lock (it takes it per step). */
 async function installOne(name: string, note: (s: string) => void, depth = 0): Promise<void> {
   if (!pyodide) throw new Error("Python runtime is not ready yet");
+  // `pip install pygame` / `PIL` / `bs4` should install what the module needs.
+  const dist = resolvePackageName(name);
   try {
-    await withLoadLock(() => pyodide!.loadPackage([name], { messageCallback: note, errorCallback: note }));
+    await withLoadLock(() => pyodide!.loadPackage([dist], { messageCallback: note, errorCallback: note }));
     return;
   } catch {
     /* not in the Pyodide distribution */
   }
+  let fromWheel = false;
   try {
     await withLoadLock(() =>
-      runPythonDimmed(`import micropip\nawait micropip.install(${JSON.stringify(name)})`),
+      runPythonDimmed(`import micropip\nawait micropip.install(${JSON.stringify(dist)})`),
     );
-    return;
+    fromWheel = true;
   } catch {
     /* no wheel for this platform */
   }
-  await installFromSdist(name, note, depth);
+  if (!fromWheel) await installFromSdist(dist, note, depth);
+  await healMissingDependency(dist, note, depth);
+}
+
+/** Some packages install without everything they import (incomplete metadata
+ *  upstream, or a sparse Pyodide lock). Import it once and fill the gaps. */
+async function healMissingDependency(dist: string, note: (s: string) => void, depth: number): Promise<void> {
+  if (depth > 2) return;
+  const code = [
+    "import sys, importlib",
+    "if '/tmp' not in sys.path: sys.path.insert(0, '/tmp')",
+    "mod = sys.modules.get('pyttig_sdist_build') or importlib.import_module('pyttig_sdist_build')",
+    `mod.missing_dependency(${JSON.stringify(dist)})`,
+  ].join("\n");
+  let missing = "";
+  try {
+    missing = String(await runPythonDimmed(code));
+  } catch {
+    return; // importing it raised something odd; not a missing-dependency case
+  }
+  if (!missing || missing === dist || missing.includes(".")) return;
+  sysOut(`  also needs ${missing}`);
+  await installOne(missing, note, depth + 1);
 }
 
 /** Build a package's sdist here (pure-Python only) and install the result.
@@ -341,6 +367,15 @@ async function doRun(m: Extract<InMsg, { type: "run" }>) {
       } catch { /* ignore */ }
       runGlobals = pyodide.globals.get("dict")();
     }
+    // Make the file behave like a script run from the workspace: libraries
+    // (Flask, argparse, pathlib, __main__ guards) read these.
+    const globals = runGlobals as {
+      set(k: string, v: unknown): void;
+      destroy?: () => void;
+    };
+    globals.set("__name__", "__main__");
+    globals.set("__file__", `${WS}/${m.filename}`);
+    globals.set("__package__", null);
     const res = await pyodide.runPythonAsync(pip.code, { filename: m.filename, globals: runGlobals });
     res?.destroy?.();
   } catch (err) {

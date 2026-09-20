@@ -174,6 +174,45 @@ Not possible in a browser at all: raw sockets, subprocesses, servers,
 compilers, and C extensions without a wasm build. When a package hits one of
 those limits the app says which one, instead of failing silently.
 
+### CodeFever python series (P1/P2/P3 + Maistros)
+
+Every library the lesson repos actually import works in Pyttig:
+
+| Lesson | Library | Status |
+| --- | --- | --- |
+| P1 L9/L10 | pygame | works (`pygame-ce` is installed under the name `pygame`) |
+| P2 L2/L5 | requests, Pillow | works |
+| P2 L4 | fastapi | works; no server sockets, so test routes with `httpx.ASGITransport` and `async def` endpoints |
+| P2 L5 | numpy | works |
+| P2 L8 | discord.py | works (imports; a real bot needs a gateway connection) |
+| P2 L9/L10 | pygame | works |
+| P3 L1/L4/L5 | requests, beautifulsoup4 | works |
+| P3 L6/L7 | flask | works; use `app.test_client()` instead of `app.run()` |
+| P3 L8 | matplotlib, huggingface_hub | works |
+| P3 L9/L10 | pygame | works |
+| Maistros 1/2 | numpy, scikit-learn, matplotlib, pandas, scipy, gymnasium, datasets, openai, langdetect, imbalanced-learn | works |
+
+Not possible, with the reason:
+
+- **transformers** (P3 L7/L8) and **ultralytics** (P3 L8) need a torch/tf
+  backend and `tokenizers` (Rust, no wasm build).
+- **supervision** (P3 L8) depends on `pybboxes`, whose build compiles Cython.
+- Declared in `pyproject.toml` but never imported by the lesson code, so they
+  don't matter: `dearpygui` (P1 L9/L10), `pikepdf`, `pyautogui`, `python-xlib`
+  (P2 L3). The Maistros `requirements.txt` files are Colab freezes that also
+  list `jax`, `faiss-cpu`, `coqui-tts` and `face_recognition_models` — none of
+  which the notebooks import. Installing a `requirements.txt` now skips the
+  notebook/Jupyter plumbing automatically and reports how many it skipped.
+- P3 L7/L8 lessons are `.ipynb` notebooks; Pyttig edits `.py` files, so the
+  notebook lessons stay in Colab/Jupyter.
+- `pygame` is aliased to `pygame-ce` (the wasm build), and other module names
+  are mapped too: `PIL`→`pillow`, `bs4`→`beautifulsoup4`,
+  `sklearn`→`scikit-learn`, `cv2`→`opencv-python`, `discord`→`discord.py`,
+  `yaml`→`pyyaml`, `docx`→`python-docx`, and more.
+
+A **CodeFever P1–P3** stack in the Packages view installs the whole working set
+in one click.
+
 ## Memory design
 
 - Shell + editor stay light; Pyodide (~100–300 MB with data stack), Ruff WASM

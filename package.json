@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:proxy": "node scripts/test-proxy.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:libs": "node scripts/check-libs.mjs"
   },
   "dependencies": {
     "@astral-sh/ruff-wasm-web": "^0.15.22",

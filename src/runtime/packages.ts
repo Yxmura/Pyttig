@@ -4,7 +4,7 @@ import type { Shell } from "../app/shell";
 import { registerCommands } from "../app/commands";
 import { notify } from "../app/toast";
 import { confirmDialog } from "../app/dialog";
-import { ensurePackages, listPackages, uninstallPackages, onRuntimeChange, type PkgInfo } from "./client";
+import { ensurePackages, listPackages, uninstallPackages, onRuntimeChange, type EnsureResult, type PkgInfo } from "./client";
 import { parseRequirements, REQUIREMENTS_FILE } from "./requirements";
 
 const PRESETS: { name: string; desc: string; pkgs: string[] }[] = [
@@ -32,6 +32,13 @@ const PRESETS: { name: string; desc: string; pkgs: string[] }[] = [
 
 let installed: PkgInfo[] = [];
 let loading = false;
+let draft = "";
+
+/** "cowsay, torch — torch: no wheel for the browser…" */
+function failureText(r: EnsureResult): string {
+  const why = r.failed.map((n) => (r.errors?.[n] ? `${n}: ${r.errors[n]}` : n));
+  return why.join(" · ");
+}
 
 async function refresh(host: HTMLElement) {
   loading = true;
@@ -51,6 +58,10 @@ function draw(host: HTMLElement) {
   box.className = "search-box";
   box.innerHTML = `<input placeholder="Install package… e.g. numpy, cowsay" aria-label="Install package"/>`;
   const input = box.querySelector("input") as HTMLInputElement;
+  input.value = draft;
+  input.oninput = () => {
+    draft = input.value;
+  };
   const btn = document.createElement("button");
   btn.className = "btn primary";
   btn.textContent = loading ? "Working…" : "Install";
@@ -59,10 +70,11 @@ function draw(host: HTMLElement) {
     const names = input.value.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
     if (!names.length) return;
     input.value = "";
+    draft = "";
     btn.disabled = true;
     try {
       const r = await ensurePackages(names);
-      if (r.failed.length) notify.error(`Failed: ${r.failed.join(", ")}`);
+      if (r.failed.length) notify.error(`Failed — ${failureText(r)}`, { timeout: 15000 });
       else notify.success(`Installed: ${r.installed.join(", ")}.`);
     } catch (err) {
       notify.error(String(err));
@@ -91,7 +103,7 @@ function draw(host: HTMLElement) {
       b.disabled = true;
       try {
         const r = await ensurePackages(p.pkgs);
-        if (r.failed.length) notify.warn(`Installed with skips: ${r.failed.join(", ")}`);
+        if (r.failed.length) notify.warn(`Installed with skips — ${failureText(r)}`, { timeout: 15000 });
         else notify.success(`${p.name} installed.`);
       } catch (err) {
         notify.error(String(err));
@@ -108,7 +120,7 @@ function draw(host: HTMLElement) {
   sec.innerHTML = `<h4>Installed (${installed.length})</h4>`;
   const sorted = [...installed].sort((a, b) => a.name.localeCompare(b.name));
   if (!sorted.length && !loading) {
-    sec.innerHTML += `<div class="empty-note">Nothing installed yet besides the standard library. Install a stack above.</div>`;
+    sec.innerHTML += `<div class="empty-note">Nothing installed yet. What you install is remembered and restored on your next visit.</div>`;
   }
   for (const p of sorted) {
     const row = document.createElement("div");
@@ -117,6 +129,12 @@ function draw(host: HTMLElement) {
     (row.querySelector(".p-name") as HTMLElement).textContent = p.name;
     (row.querySelector(".p-ver") as HTMLElement).textContent = p.version;
     (row.querySelector(".p-src") as HTMLElement).textContent = p.source || "stdlib";
+    if (p.source === "pyodide") {
+      // Bundled with the runtime: it can't be uninstalled, and shouldn't be.
+      row.title = `${p.name} ships with the Python runtime`;
+      sec.appendChild(row);
+      continue;
+    }
     const del = document.createElement("button");
     del.className = "icon-btn";
     del.title = `Uninstall ${p.name}`;
@@ -172,7 +190,7 @@ export function initPackages(shell: Shell): void {
         notify.info(`Installing ${names.length} package(s) from ${REQUIREMENTS_FILE}…`, { timeout: 6000 });
         const r = await ensurePackages(names);
         if (r.failed.length) {
-          notify.warn(`Installed ${r.installed.length}; skipped (not available in the browser): ${r.failed.join(", ")}`, {
+          notify.warn(`Installed ${r.installed.length}; skipped — ${failureText(r)}`, {
             timeout: 15000,
           });
         } else {

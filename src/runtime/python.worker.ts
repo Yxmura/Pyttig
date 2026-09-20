@@ -15,7 +15,7 @@ type InMsg =
   | { id: number; type: "init"; indexURL: string; moduleURL?: string; isolated: boolean; interruptBuffer?: SharedArrayBuffer; stdinBuffer?: SharedArrayBuffer; stdinMeta?: SharedArrayBuffer }
   | { id: number; type: "run"; runId: number; code: string; filename: string; args: string[]; files: RunFile[]; keepNs: boolean; stdinLines: string[] }
   | { id: number; type: "lsp"; op: string; params: Record<string, unknown> }
-  | { id: number; type: "ensure-packages"; names: string[] }
+  | { id: number; type: "ensure-packages"; names: string[]; quiet?: boolean }
   | { id: number; type: "list-packages" }
   | { id: number; type: "uninstall"; names: string[] }
   | { id: number; type: "reset" }
@@ -219,6 +219,9 @@ function snapshot(dir: string): Map<string, string> {
 
 async function doRun(m: Extract<InMsg, { type: "run" }>) {
   if (!pyodide) throw new Error("Python runtime is not ready yet");
+  // Don't start while a package install (e.g. the boot-time restore) is in
+  // flight, or `import x` would fail spuriously.
+  await pkgWork;
   currentRunId = m.runId;
   stdinQueue = [...m.stdinLines];
   const WS = "/home/pyodide/workspace";
@@ -244,6 +247,7 @@ async function doRun(m: Extract<InMsg, { type: "run" }>) {
         ),
       );
       sysOut("ok");
+      post({ event: "pkg-installed", names: pip.packages });
     } catch (err) {
       sysOut(`pip install failed: ${err instanceof Error ? err.message : err}`);
     }
@@ -375,8 +379,9 @@ async function doLsp(m: Extract<InMsg, { type: "lsp" }>) {
   return result;
 }
 
-async function doEnsurePackages(names: string[]) {
+async function doEnsurePackages(names: string[], quiet = false) {
   if (!pyodide) throw new Error("Python runtime is not ready yet");
+  const note = quiet ? () => {} : (s: string) => sysOut(String(s));
   const need: string[] = [];
   try {
     const loaded: string[] = pyodide.runPython("list(__import__('sys').modules)").toJs();
@@ -389,17 +394,18 @@ async function doEnsurePackages(names: string[]) {
     try {
       await withLoadLock(() =>
         pyodide.loadPackage(need, {
-          messageCallback: (s: string) => sysOut(String(s)),
-          errorCallback: (s: string) => sysOut(String(s)),
+          messageCallback: note,
+          errorCallback: note,
         }),
       );
-      return { installed: need, failed: [] as string[] };
+      return { installed: need, failed: [] as string[], errors: {} as Record<string, string> };
     } catch {
       /* fall through to per-package micropip */
     }
   }
   const installed: string[] = [];
   const failed: string[] = [];
+  const errors: Record<string, string> = {};
   await ensureMicropip();
   for (const n of need) {
     post({ event: "pkg-status", name: n, state: "installing" });
@@ -410,12 +416,29 @@ async function doEnsurePackages(names: string[]) {
       installed.push(n);
       post({ event: "pkg-status", name: n, state: "done" });
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       failed.push(n);
-      post({ event: "pkg-status", name: n, state: "error", error: String(err) });
+      errors[n] = explainInstallError(msg);
+      post({ event: "pkg-status", name: n, state: "error", error: errors[n] });
     }
   }
-  return { installed, failed };
+  return { installed, failed, errors };
 }
+
+/** Turn micropip's terse failures into something a student can act on. */
+function explainInstallError(msg: string): string {
+  const flat = msg.replace(/\s+/g, " ").trim();
+  if (/Couldn't find a pure Python 3 wheel|No wheel|not found in PyPI/i.test(flat)) {
+    return "no wheel for the browser — it would need compiling C code, which browsers can't do";
+  }
+  if (/Failed to fetch|NetworkError|Load failed/i.test(flat)) {
+    return "download failed (check your connection)";
+  }
+  return flat.slice(0, 160);
+}
+
+/** In-flight package work that a run must not overtake. */
+let pkgWork: Promise<unknown> = Promise.resolve();
 
 self.onmessage = async (e: MessageEvent<InMsg>) => {
   const m = e.data;
@@ -437,30 +460,31 @@ self.onmessage = async (e: MessageEvent<InMsg>) => {
         break;
       }
       case "ensure-packages": {
-        const r = await doEnsurePackages(m.names);
+        const p = doEnsurePackages(m.names, m.quiet);
+        pkgWork = Promise.allSettled([pkgWork, p]);
+        const r = await p;
         post({ id: m.id, ok: true, result: r });
         break;
       }
       case "list-packages": {
-        await withLoadLock(() =>
-          pyodide.loadPackage("micropip", {
-            messageCallback: () => {},
-            errorCallback: () => {},
-          }),
-        );
+        await ensureMicropip();
         const proxy = await pyodide.runPythonAsync(
-          "import micropip, json\njson.dumps([{k: {'name': v.name, 'version': v.version, 'source': str(getattr(v, 'source', ''))}} for k, v in micropip.list().items()])",
+          "import micropip, json\njson.dumps([{'name': v.name, 'version': v.version, 'source': str(getattr(v, 'source', ''))} for v in micropip.list().values()])",
         );
-        post({ id: m.id, ok: true, result: JSON.parse(proxy as string) });
+        const mp = JSON.parse(proxy as string) as { name: string; version: string; source: string }[];
+        const seen = new Set(mp.map((p) => p.name.toLowerCase()));
+        const internal = new Set(["micropip", "jedi", "parso", "pyodide-http", "packaging", "pyodide-py"]);
+        for (const [name, version] of Object.entries(pyodide.loadedPackages ?? {})) {
+          const key = name.toLowerCase();
+          if (seen.has(key) || internal.has(key)) continue;
+          mp.push({ name, version: String(version), source: "pyodide" });
+        }
+        mp.sort((a, b) => a.name.localeCompare(b.name));
+        post({ id: m.id, ok: true, result: mp });
         break;
       }
       case "uninstall": {
-        await withLoadLock(() =>
-          pyodide.loadPackage("micropip", {
-            messageCallback: () => {},
-            errorCallback: () => {},
-          }),
-        );
+        await ensureMicropip();
         await pyodide.runPythonAsync(
           `import micropip\nmicropip.uninstall(${JSON.stringify(m.names)})`,
         );

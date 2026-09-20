@@ -33,13 +33,13 @@ let currentWorkerSource = pythonWorkerUrl;
 let currentWorkerRevoke: () => void = () => {};
 let preloadStarted = false;
 let preloadGen = 0;
+let restored = false;
 
 const listeners = new Set<() => void>();
 export function onRuntimeChange(fn: () => void): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
-}
-function changed() {
+}function changed() {
   for (const l of listeners) {
     try {
       l();
@@ -47,6 +47,55 @@ function changed() {
       console.error(err);
     }
   }
+}
+
+// ---- installed-package memory (survives reloads) --------------------------
+// micropip installs live in the worker's virtual FS, which dies with it. We
+// remember what the user asked for and quietly reinstall it on the next boot.
+
+const PKG_STORE_KEY = "pyttig.packages.v1";
+const PKG_STORE_MAX = 60;
+
+export interface EnsureResult {
+  installed: string[];
+  failed: string[];
+  errors?: Record<string, string>;
+}
+
+function readSavedPackages(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PKG_STORE_KEY) ?? "[]");
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((s): s is string => typeof s === "string" && !!s.trim());
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedPackages(specs: string[]): void {
+  try {
+    localStorage.setItem(PKG_STORE_KEY, JSON.stringify(specs.slice(0, PKG_STORE_MAX)));
+  } catch {
+    /* storage full/blocked — package memory is best effort */
+  }
+}
+
+function rememberPackages(specs: string[]): void {
+  const cur = readSavedPackages();
+  const seen = new Set(cur.map((s) => s.toLowerCase()));
+  for (const s of specs) {
+    const key = s.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      cur.push(s);
+    }
+  }
+  writeSavedPackages(cur);
+}
+
+function forgetPackages(specs: string[]): void {
+  const drop = new Set(specs.map((s) => s.toLowerCase()));
+  writeSavedPackages(readSavedPackages().filter((s) => !drop.has(s.toLowerCase())));
 }
 
 export function runtimeState() {
@@ -174,6 +223,7 @@ async function ensureWorker(): Promise<void> {
     pyVersion = r.version;
     setState("ready");
     shell.refreshBadges();
+    void restorePackages();
   })();
   initPromise.catch(() => {
     // Reset so a later attempt can start fresh.
@@ -189,6 +239,7 @@ function teardownWorker(): void {
   worker = null;
   initPromise = null;
   pyVersion = "";
+  restored = false;
   setState("idle");
 }
 
@@ -221,6 +272,9 @@ function onWorkerMessage(e: MessageEvent) {
       break;
     case "pkg-status":
       changed();
+      break;
+    case "pkg-installed":
+      rememberPackages((m.names as string[]) ?? []);
       break;
   }
 }
@@ -456,25 +510,53 @@ export interface PkgInfo {
   source: string;
 }
 
-export async function ensurePackages(names: string[]): Promise<{ installed: string[]; failed: string[] }> {
+export async function ensurePackages(names: string[]): Promise<EnsureResult> {
   await ensureWorker();
   pokeIdle();
   shell.setPanel("packages");
-  const r = await request<{ installed: string[]; failed: string[] }>("ensure-packages", { names });
+  const r = await request<EnsureResult>("ensure-packages", { names });
+  rememberPackages(names.filter((n) => !r.failed.includes(n)));
   changed();
   return r;
+}
+
+/** Quietly reinstall what the user installed before this page load. */
+async function restorePackages(): Promise<void> {
+  if (restored) return;
+  restored = true;
+  const specs = readSavedPackages();
+  if (!specs.length) return;
+  try {
+    const r = await request<EnsureResult>("ensure-packages", { names: specs, quiet: true });
+    if (r.failed.length) {
+      forgetPackages(r.failed);
+      const why = r.errors?.[r.failed[0]];
+      notify.warn(`Could not restore: ${r.failed.join(", ")}${why ? ` — ${why}` : ""}`, { timeout: 15000 });
+    }
+  } catch {
+    /* runtime hiccup — packages are still remembered for next time */
+  }
 }
 
 export async function listPackages(): Promise<PkgInfo[]> {
   await ensureWorker();
   const r = await request<Record<string, PkgInfo> | PkgInfo[]>("list-packages");
-  const arr = Array.isArray(r) ? r : Object.values(r ?? {});
-  return arr.map((p) => ({ name: p.name, version: p.version, source: p.source ?? "" }));
+  const arr: unknown[] = Array.isArray(r) ? r : Object.values(r ?? {});
+  const out: PkgInfo[] = [];
+  for (const p of arr) {
+    if (!p || typeof p !== "object") continue;
+    // Older workers wrapped each entry as { "<name>": {...} }.
+    const val = ("name" in p ? p : Object.values(p)[0]) as PkgInfo | undefined;
+    if (!val || typeof val.name !== "string") continue;
+    out.push({ name: val.name, version: val.version ?? "", source: val.source ?? "" });
+  }
+  return out;
 }
 
 export async function uninstallPackages(names: string[]): Promise<void> {
   await ensureWorker();
   await request("uninstall", { names });
+  forgetPackages(names);
   changed();
 }
 

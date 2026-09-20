@@ -25,6 +25,19 @@ const HOP_HEADERS = new Set([
   "proxy-authorization",
   "proxy-authenticate",
   "content-length", // re-derived by fetch from the stream
+  // Browser context that upstream WAFs (Cloudflare and friends) reject when
+  // it arrives from a server: keep the proxy transparent instead.
+  "origin",
+  "referer",
+  "cookie",
+  "sec-fetch-site",
+  "sec-fetch-mode",
+  "sec-fetch-dest",
+  "sec-fetch-user",
+  "sec-ch-ua",
+  "sec-ch-ua-mobile",
+  "sec-ch-ua-platform",
+  "accept-encoding",
 ]);
 
 const FORWARD_RESPONSE_HEADERS = ["content-type", "content-encoding", "cache-control", "etag", "last-modified"];

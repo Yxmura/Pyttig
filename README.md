@@ -180,17 +180,27 @@ Every library the lesson repos actually import works in Pyttig:
 
 | Lesson | Library | Status |
 | --- | --- | --- |
-| P1 L9/L10 | pygame | works (`pygame-ce` is installed under the name `pygame`) |
-| P2 L2/L5 | requests, Pillow | works |
+| P1 L9/L10 | pygame | runs, but without a window (see below) |
+| P2 L2/L3/L5 | requests, Pillow, numpy | works — even for sites without CORS headers, via the Pyttig proxy |
 | P2 L4 | fastapi | works; no server sockets, so test routes with `httpx.ASGITransport` and `async def` endpoints |
-| P2 L5 | numpy | works |
 | P2 L8 | discord.py | works (imports; a real bot needs a gateway connection) |
-| P2 L9/L10 | pygame | works |
-| P3 L1/L4/L5 | requests, beautifulsoup4 | works |
+| P2 L9/L10 | pygame | runs, but without a window (see below) |
+| P3 L1/L4/L5 | requests, beautifulsoup4 | works, including scraping `shop.codefever.be` |
 | P3 L6/L7 | flask | works; use `app.test_client()` instead of `app.run()` |
 | P3 L8 | matplotlib, huggingface_hub | works |
-| P3 L9/L10 | pygame | works |
+| P3 L9/L10 | pygame | runs, but without a window (see below) |
 | Maistros 1/2 | numpy, scikit-learn, matplotlib, pandas, scipy, gymnasium, datasets, openai, langdetect, imbalanced-learn | works |
+
+**Network lessons** work out of the box: `requests` and `urllib` are routed
+through the Pyttig proxy (the same one git uses), so lesson APIs
+(pokeapi, chucknorris, joke/bored/meme APIs, the school's Shopify site) answer
+even when they send no CORS headers. `pip install` traffic and the Pyodide CDN
+bypass the proxy — they are CORS-enabled already.
+
+**pygame lessons** import and run their logic (sprites, movement, collisions,
+prints), but a browser page can't give a background worker a window, so
+`pygame.display.set_mode()` stops with an explanation instead of freezing.
+The visual part needs the local launcher or a pygbag build.
 
 Not possible, with the reason:
 

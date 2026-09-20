@@ -212,10 +212,18 @@ async function ensureWorker(): Promise<void> {
       stdinBuf = null;
       stdinMeta = null;
     }
+    // Same proxy the git client uses, for `requests` in student code.
+    const proxyBase = (() => {
+      const w = window as unknown as { __pyttigLauncher?: boolean; __pyttigProxy?: string };
+      const basePath = location.pathname.replace(/[^/]*$/, "");
+      if (w.__pyttigLauncher) return `${location.origin}${basePath}__pyttig__/proxy`;
+      return w.__pyttigProxy;
+    })();
     const r = await request<{ version: string; isolated: boolean }>("init", {
       indexURL: resolvePyodideUrls().index,
       moduleURL: resolvePyodideUrls().module,
       isolated: sabIsolated,
+      proxy: proxyBase,
       interruptBuffer,
       stdinBuffer,
       stdinMeta: stdinMetaBuf,

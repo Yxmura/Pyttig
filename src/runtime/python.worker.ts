@@ -14,7 +14,7 @@ interface RunFile {
 }
 
 type InMsg =
-  | { id: number; type: "init"; indexURL: string; moduleURL?: string; isolated: boolean; interruptBuffer?: SharedArrayBuffer; stdinBuffer?: SharedArrayBuffer; stdinMeta?: SharedArrayBuffer }
+  | { id: number; type: "init"; indexURL: string; moduleURL?: string; isolated: boolean; proxy?: string; interruptBuffer?: SharedArrayBuffer; stdinBuffer?: SharedArrayBuffer; stdinMeta?: SharedArrayBuffer }
   | { id: number; type: "run"; runId: number; code: string; filename: string; args: string[]; files: RunFile[]; keepNs: boolean; stdinLines: string[] }
   | { id: number; type: "lsp"; op: string; params: Record<string, unknown> }
   | { id: number; type: "ensure-packages"; names: string[]; quiet?: boolean }
@@ -53,12 +53,14 @@ function emitOut() {
 function pipeStdout(s: string): void {
   // Pyodide strips trailing newlines from batches — restore the line break.
   outBuffer += s + "\n";
-  if (outBuffer.length > 4096) emitOut();
+  // Flush eagerly: a game loop or a long computation should show its output
+  // as it happens, not only when the run ends.
+  if (outBuffer.length > 256) emitOut();
 }
 
 function pipeStderr(s: string): void {
   errBuffer += s + "\n";
-  if (errBuffer.length > 4096) emitOut();
+  if (errBuffer.length > 256) emitOut();
 }
 
 /** Loader chatter ("Loading numpy" / "Loaded numpy", pip noise) rendered dim. */
@@ -77,6 +79,39 @@ function withLoadLock<T>(fn: () => Promise<T>): Promise<T> {
   const run = loadChain.then(fn, fn);
   loadChain = run.catch(() => undefined);
   return run;
+}
+
+let proxyFetchInstalled = false;
+
+/** Route external fetches through the Pyttig proxy so `requests` works on
+ *  sites that don't send CORS headers (lesson APIs, school websites).
+ *  Package hosts are left alone: they are CORS-enabled and proxying them
+ *  would slow installs down for no reason. */
+function installProxyFetch(proxy: string | undefined): void {
+  if (!proxy || proxyFetchInstalled) return;
+  proxyFetchInstalled = true;
+  const queryForm = proxy.endsWith("?");
+  const base = queryForm || proxy.endsWith("/") ? proxy : `${proxy}/`;
+  const skip = new Set(["pypi.org", "files.pythonhosted.org", "test.pypi.org", "cdn.jsdelivr.net"]);
+  const original = self.fetch.bind(self);
+  const proxied = (target: string) =>
+    queryForm ? base + encodeURIComponent(target) : base + target;
+  self.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    try {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const parsed = new URL(url, self.location.href);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return original(input, init);
+      if (parsed.origin === self.location.origin || skip.has(parsed.hostname)) {
+        return original(input, init);
+      }
+      if (typeof input !== "string" && !(input instanceof URL)) {
+        return original(new Request(proxied(url), input as Request), init);
+      }
+      return original(proxied(url), init);
+    } catch {
+      return original(input, init);
+    }
+  };
 }
 
 /** Load micropip if needed (quietly). Required before any micropip.install. */
@@ -255,6 +290,7 @@ async function doInit(m: Extract<InMsg, { type: "init" }>) {
     sabIn = { buf: new Uint8Array(m.stdinBuffer), meta: new Int32Array(m.stdinMeta) };
   }
   // Networking patch so `requests` / urllib work in the browser.
+  installProxyFetch(m.proxy);
   try {
     await withLoadLock(() =>
       pyodide.loadPackage("pyodide-http", {
@@ -277,6 +313,32 @@ async function doInit(m: Extract<InMsg, { type: "init" }>) {
   );
   return { version, isolated: m.isolated, sabStdin: !!sabIn };
 }
+
+/** Pyodide's pygame needs the main thread and a DOM canvas. We run Python in
+ *  a worker, so opening a window would hang the run. Set the dummy SDL drivers
+ *  (so init() works) and make set_mode explain itself instead of freezing. */
+const PYGAME_PROLOGUE = `
+import os as __pyttig_os, builtins as __pyttig_builtins
+__pyttig_os.environ["SDL_VIDEODRIVER"] = "dummy"
+__pyttig_os.environ["SDL_AUDIODRIVER"] = "dummy"
+__pyttig_import = __pyttig_builtins.__import__
+def __pyttig_import_hook(name, *args, **kwargs):
+    mod = __pyttig_import(name, *args, **kwargs)
+    if name == "pygame" and not getattr(mod, "__pyttig_shimmed", False):
+        def __pyttig_no_window(*_a, **_k):
+            raise RuntimeError(
+                "Pyttig runs Python in a background worker, so pygame cannot open a window here. "
+                "Everything else in your program runs (sprites, movement, collisions, prints). "
+                "Use the local launcher for the visual part."
+            )
+        try:
+            mod.display.set_mode = __pyttig_no_window
+            mod.__pyttig_shimmed = True
+        except Exception:
+            pass
+    return mod
+__pyttig_builtins.__import__ = __pyttig_import_hook
+`;
 
 function snapshot(dir: string): Map<string, string> {
   const out = new Map<string, string>();
@@ -376,7 +438,17 @@ async function doRun(m: Extract<InMsg, { type: "run" }>) {
     globals.set("__name__", "__main__");
     globals.set("__file__", `${WS}/${m.filename}`);
     globals.set("__package__", null);
-    const res = await pyodide.runPythonAsync(pip.code, { filename: m.filename, globals: runGlobals });
+    // pygame needs the dummy SDL drivers *and* a patched set_mode; both only
+    // stick when they happen in the same run as the program, so the program is
+    // executed through a wrapper that keeps tracebacks pointing at real lines.
+    const prologue = /\bpygame\b/.test(pip.code) ? PYGAME_PROLOGUE : "";
+    const wrapper = [
+      prologue,
+      `__pyttig_code = eval(compile(${JSON.stringify(pip.code)}, ${JSON.stringify(m.filename)}, "exec", flags=__import__("ast").PyCF_ALLOW_TOP_LEVEL_AWAIT), globals())`,
+      "if __pyttig_code is not None:",
+      "    await __pyttig_code",
+    ].join("\n");
+    const res = await pyodide.runPythonAsync(wrapper, { filename: m.filename, globals: runGlobals });
     res?.destroy?.();
   } catch (err) {
     emitOut();

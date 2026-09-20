@@ -31,11 +31,13 @@ await page.evaluate((text) => {
 }, code);
 await page.waitForTimeout(1500);
 await page.keyboard.press("Control+Enter");
-await page.waitForFunction(
-  () => (document.getElementById("panel-body")?.innerText ?? "").includes("[done]"),
-  undefined,
-  { timeout: 300000, polling: 1000 },
-);
+const waitMs = Number(process.env.PROBE_WAIT ?? 300000);
+const deadline = Date.now() + waitMs;
+while (Date.now() < deadline) {
+  const t = await page.evaluate(() => document.getElementById("panel-body")?.innerText ?? "");
+  if (t.includes("[done]")) break;
+  await page.waitForTimeout(1000);
+}
 const term = await page.evaluate(() => document.getElementById("panel-body")?.innerText ?? "");
 console.log(term);
 await browser.close();

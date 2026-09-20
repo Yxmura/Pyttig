@@ -40,6 +40,10 @@ from http import HTTPStatus
 VERSION = "0.1.0"
 HOP_HEADERS = {
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+    # Browser context that upstream WAFs reject when it arrives from a server.
+    "origin", "referer", "cookie", "accept-encoding",
+    "sec-fetch-site", "sec-fetch-mode", "sec-fetch-dest", "sec-fetch-user",
+    "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
     "te", "trailer", "transfer-encoding", "upgrade",
 }
 MAX_PROXY_BYTES = 128 * 1024 * 1024
@@ -218,7 +222,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         body = self.rfile.read(length) if length else None
 
-        fwd = {}
+        fwd = {"User-Agent": "Pyttig/1.0 (+https://pyttig.yamura.dev)"}
         ctype = self.headers.get("Content-Type")
         if ctype:
             fwd["Content-Type"] = ctype

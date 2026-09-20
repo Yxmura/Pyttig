@@ -65,7 +65,7 @@ export function initMemory(shell: Shell, opts: Collectors): void {
     icon: "cpu",
     text: () => (measured ? formatBytes(totalOf(parts)) : "—"),
     tooltip: () => {
-      if (!measured) return "Memory — click to measure";
+      if (!measured) return "Memory: click to measure";
       const lines = [
         `Python ${formatBytes(parts.python)}`,
         `Ruff ${formatBytes(parts.ruff)}`,
@@ -73,9 +73,9 @@ export function initMemory(shell: Shell, opts: Collectors): void {
       ];
       if (parts.git) lines.push(`Git ${formatBytes(parts.git)}`);
       return [
-        "Memory (WASM runtimes + main-thread JS heap)",
+        "Memory (WASM runtimes + JS heap)",
         lines.join(" · "),
-        `Total ${formatBytes(totalOf(parts))} — click to re-measure`,
+        `Total ${formatBytes(totalOf(parts))}. Click to re-measure`,
       ].join("\n");
     },
     onClick: () => void measure(),

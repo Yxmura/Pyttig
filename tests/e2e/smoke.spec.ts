@@ -39,8 +39,8 @@ test("boot, edit, run Python, lint, complete, git panel", async ({ page }) => {
 
   // Run it (Pyodide downloads on first use).
   await page.keyboard.press("F5");
-  await expect(page.locator("#panel-body")).toContainText("— run main.py", { timeout: 30000 });
-  await expect(page.locator("#panel-body")).toContainText("— done —", { timeout: 180000 });
+  await expect(page.locator("#panel-body")).toContainText("[run] main.py", { timeout: 30000 });
+  await expect(page.locator("#panel-body")).toContainText("[done]", { timeout: 180000 });
   await expect(page.locator("#panel-body")).toContainText("4");
 
   // Lint: unused import → Problems badge.

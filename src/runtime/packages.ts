@@ -10,7 +10,7 @@ import { parseRequirements, REQUIREMENTS_FILE } from "./requirements";
 const PRESETS: { name: string; desc: string; pkgs: string[] }[] = [
   {
     name: "Data science core",
-    desc: "numpy · pandas · matplotlib · requests · beautifulsoup4 · Pillow · sympy — everything for data exercises",
+    desc: "numpy · pandas · matplotlib · requests · beautifulsoup4 · Pillow · sympy",
     pkgs: ["numpy", "pandas", "matplotlib", "requests", "beautifulsoup4", "Pillow", "pyyaml", "rich", "tqdm", "python-dateutil", "sympy"],
   },
   {

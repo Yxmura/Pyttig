@@ -347,7 +347,7 @@ async function runDiagnostics(uri: string) {
     uri,
     severity: ({ error: 1, warning: 2, info: 3, hint: 4 } as const)[ruffSeverity(d.code)],
     code: d.code ?? "ruff",
-    message: d.message + (d.fix?.message ? ` — fix: ${d.fix.message}` : ""),
+    message: d.fix?.message ? `${d.message} (fix: ${d.fix.message})` : d.message,
     range: {
       start: lspPos(d.start_location.row, d.start_location.column),
       end: lspPos(d.end_location.row, d.end_location.column),
@@ -413,7 +413,7 @@ function renderProblems(host: HTMLElement) {
     host.innerHTML = "";
     const all = [...problems.entries()].flatMap(([uri, list]) => list.map((d) => ({ ...d, uri })));
     if (!all.length) {
-      host.innerHTML = `<div class="empty-note">No problems. Spicy and clean. 🌶️</div>`;
+      host.innerHTML = `<div class="empty-note">No problems.</div>`;
       return;
     }
     const box = document.createElement("div");

@@ -317,7 +317,7 @@ export async function runFile(): Promise<void> {
   const args = s.runArgs.trim() ? s.runArgs.trim().split(/\s+/) : [];
   const stdinLines: string[] = [];
   shell.setPanel("terminal");
-  terminal.write(`\x1b[2m— run ${path} · Python ${pyVersion || PYODIDE_VERSION} —\x1b[0m\r\n`);
+  terminal.write(`\x1b[2m[run] ${path} · Python ${pyVersion || PYODIDE_VERSION}\x1b[0m\r\n`);
   setState("running");
   pokeIdle();
   const runId = ++runSeq;
@@ -341,7 +341,7 @@ function handleRunDone(m: Record<string, unknown>) {
   const runId = Number(m.runId);
   if (runId !== activeRun) return;
   setState("ready");
-  terminal.write(`\x1b[2m— done —\x1b[0m\r\n`);
+  terminal.write(`\x1b[2m[done]\x1b[0m\r\n`);
   const result = (m.result ?? {}) as {
     plots?: { name: string; png: ArrayBuffer }[];
     changed?: { path: string; content: ArrayBuffer }[];
@@ -380,7 +380,7 @@ export async function runSelection(): Promise<void> {
     return;
   }
   shell.setPanel("terminal");
-  terminal.write(`\x1b[2m— run selection · Python ${pyVersion || PYODIDE_VERSION} —\x1b[0m\r\n`);
+  terminal.write(`\x1b[2m[run] selection · Python ${pyVersion || PYODIDE_VERSION}\x1b[0m\r\n`);
   setState("running");
   pokeIdle();
   const runId = ++runSeq;
@@ -437,7 +437,7 @@ function pokeIdle() {
   idleTimer = window.setTimeout(() => {
     if (state === "ready" && worker) {
       teardownWorker();
-      notify.info("Python runtime unloaded after idle (memory freed). It restarts on next run.");
+      notify.info("Runtime unloaded (idle). It restarts on the next run.");
     }
   }, mins * 60 * 1000);
 }
@@ -546,7 +546,7 @@ function renderPlotsPanel(host: HTMLElement) {
     host.innerHTML = "";
     const list = getPlots();
     if (!list.length) {
-      host.innerHTML = `<div class="empty-note">No figures yet. Run code that calls <kbd>plt.show()</kbd> and figures appear here.</div>`;
+      host.innerHTML = `<div class="empty-note">No figures yet. Call <kbd>plt.show()</kbd> to see figures here.</div>`;
       return;
     }
     for (const p of list) {
@@ -579,15 +579,15 @@ async function maybePreload() {
   preloadStarted = true;
   const gen = ++preloadGen;
   try {
-    notify.info("Installing the data-science stack in the background (numpy, pandas, matplotlib, requests…)…", { timeout: 8000 });
+    notify.info("Installing numpy, pandas, matplotlib, requests…", { timeout: 8000 });
     const r = await ensurePackages(CORE_STACK);
     if (gen !== preloadGen) return; // cancelled by a user run
     saveSettings({ preloadStackDone: true });
-    if (r.failed.length) notify.warn(`Stack installed with skips: ${r.failed.join(", ")}. Install them later from Packages.`);
-    else notify.success("Data-science stack ready.");
+    if (r.failed.length) notify.warn(`Installed with skips: ${r.failed.join(", ")}.`);
+    else notify.success("Stack ready.");
   } catch (err) {
     if (gen !== preloadGen) return;
-    notify.warn(`Background stack install paused: ${err instanceof Error ? err.message : err}. It will retry on first run.`);
+    notify.warn(`Install paused: ${err instanceof Error ? err.message : err}. It retries on first run.`);
     preloadStarted = false;
   }
 }
@@ -633,11 +633,7 @@ export async function initRuntime(sh: Shell): Promise<void> {
 
   const { launcher } = await detectBackends();
   if (!window.crossOriginIsolated && !launcher) {
-    notify.info(
-      "This host doesn't send cross-origin isolation headers, so stop/interactive input are limited. " +
-        "See README → Deploying for the two headers to add (or run `python pyttig.py`).",
-      { timeout: 12000 },
-    );
+    notify.info("Stop and input() need isolation headers. Add them, or run `python pyttig.py`.", { timeout: 12000 });
   }
   // Background preload shortly after boot — the editor stays usable meanwhile.
   window.setTimeout(() => void maybePreload(), 2500);

@@ -46,7 +46,7 @@ test("hosted deployment: isolate, detect proxy, clone and pull", async ({ page }
 
   // Pull through the serverless proxy.
   await page.locator(".side-body .btn", { hasText: "Pull" }).click();
-  await expect(page.locator(".toasts")).toContainText(/Pulled latest|latest/i, { timeout: 180000 });
+  await expect(page.locator(".toasts")).toContainText(/Pulled|latest/i, { timeout: 180000 });
 
   expect(errors.filter((e) => !/favicon/i.test(e))).toEqual([]);
 });

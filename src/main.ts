@@ -64,7 +64,7 @@ async function boot() {
   shell.setStatus({
     id: "pyttig", side: "right", order: 100, icon: "zap",
     text: () => "Pyttig",
-    tooltip: () => "Pyttig — spicy Python IDE",
+    tooltip: () => "Pyttig",
   });
   shell.setStatus({
     id: "launcher", side: "right", order: 90, icon: "cpu",

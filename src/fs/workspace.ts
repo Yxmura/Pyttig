@@ -233,7 +233,7 @@ export async function importZip(data: Uint8Array): Promise<number> {
 
 // ---------- first-run seed ----------
 
-const DEMO_MAIN = `"""Pyttig demo — real CPython in your browser. Press F5 to run."""
+const DEMO_MAIN = `"""Pyttig demo: real CPython in your browser. Press F5 to run."""
 
 import numpy as np
 import pandas as pd
@@ -564,7 +564,7 @@ export async function initWorkspace(shell: Shell): Promise<void> {
         await resetWorkspace();
         const { setGitRoot } = await import("../git/client");
         setGitRoot("/");
-        notify.success("Workspace reset. Fresh start.");
+        notify.success("Workspace reset.");
       },
     },
     {

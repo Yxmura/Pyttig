@@ -26,7 +26,7 @@ export async function resolveWorkerSource(url: string): Promise<{ url: string; r
       if (res.ok) {
         const code = await res.text();
         const blobUrl = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
-        console.warn(`Worker served as "${type}" — loading it via a blob instead (${url}).`);
+        console.warn(`Worker served as "${type}"; loading it via a blob instead (${url}).`);
         return { url: blobUrl, revoke: () => URL.revokeObjectURL(blobUrl) };
       }
     }
@@ -74,7 +74,7 @@ export function handleWorkerError(label: string, workerUrl: string | URL, detail
       reported = true;
       notify.error(
         `${label} could not start: the server served its worker script as "${contentType}" instead of JavaScript. ` +
-          "This deployment is out of date or misconfigured — redeploy the current build (and hard-refresh).",
+          "This deployment is out of date. Redeploy the current build, then hard-refresh.",
         { timeout: 60000, actions: [{ label: "Reload", primary: true, run: () => location.reload() }] },
       );
       return;

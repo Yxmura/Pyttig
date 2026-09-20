@@ -97,8 +97,8 @@ function renderGitView(host: HTMLElement) {
       const wrap = document.createElement("div");
       wrap.className = "git-empty";
       wrap.innerHTML = `
-        <p class="git-empty-title">No repository here yet</p>
-        <p class="git-empty-note">Clone one into your workspace to pull the latest changes from anywhere. Pyttig keeps git simple — no commit screen, no staging, no author forms.</p>
+        <p class="git-empty-title">No repository yet</p>
+        <p class="git-empty-note">Clone a repository to get started.</p>
         <button class="btn primary" data-clone>${icons.download}<span>Clone repository…</span></button>
         <button class="btn" data-folder>${icons.folderOpen}<span>Use existing folder…</span></button>`;
       (wrap.querySelector("[data-clone]") as HTMLButtonElement).onclick = () => void doClone();
@@ -160,7 +160,7 @@ function renderGitView(host: HTMLElement) {
       const url = document.createElement("div");
       url.className = "git-remote";
       url.textContent = remote.url.replace(/^https?:\/\//, "");
-      url.title = `${remote.url} — click to copy`;
+      url.title = `Click to copy: ${remote.url}`;
       url.onclick = () => {
         void navigator.clipboard.writeText(remote.url).then(
           () => notify.success("Remote URL copied."),
@@ -205,7 +205,7 @@ async function doClone() {
     const dir = await withAuthRetry("Clone", () => gitClone(url.trim(), name.trim()));
     notify.success(`Cloned into "${dir}".`);
     emitWorkspaceReset();
-    if (await confirmDialog("Clone complete", `Use "${dir}" as the git project from now on?`, "Use as project")) {
+    if (await confirmDialog("Clone complete", `Use "${dir}" as the git project?`, "Use as project")) {
       setGitRoot(dir);
     }
     await offerRequirements(dir);
@@ -243,7 +243,7 @@ async function offerRequirements(dir: string): Promise<void> {
     if (!names.length) return;
     const ok = await confirmDialog(
       "Install dependencies",
-      `This repository has a ${REQUIREMENTS_FILE} (${names.slice(0, 8).join(", ")}${names.length > 8 ? ", …" : ""}). Install them now?`,
+      `${REQUIREMENTS_FILE} found: ${names.slice(0, 8).join(", ")}${names.length > 8 ? ", …" : ""}. Install now?`,
       "Install",
     );
     if (!ok) return;
@@ -267,13 +267,13 @@ async function doPull() {
     await withAuthRetry("Pull", () =>
       gitPull({ name: "Pyttig", email: "pyttig@local" }),
     );
-    notify.success("Pulled latest changes.");
+    notify.success("Pulled.");
     emitWorkspaceReset();
   } catch (err) {
     if (isCancel(err)) return;
     const msg = err instanceof Error ? err.message : String(err);
     if (/conflict/i.test(msg)) {
-      notify.warn("Merge conflicts — resolve the markers in the editor.", { timeout: 10000 });
+      notify.warn("Merge conflicts. Resolve the markers in the editor.", { timeout: 10000 });
     } else {
       notify.error(`Pull failed: ${msg}`);
     }
@@ -290,7 +290,7 @@ async function doFetch() {
   refreshed();
   try {
     await withAuthRetry("Fetch", () => gitFetch());
-    notify.success("Checked the remote.");
+    notify.success("Fetched.");
   } catch (err) {
     if (isCancel(err)) return;
     notify.error(`Fetch failed: ${err instanceof Error ? err.message : err}`);
@@ -367,7 +367,7 @@ export async function initGit(sh: Shell): Promise<void> {
       const where = root === "/" ? "" : ` · ${root}`;
       return `${branches.current ?? "…"}${where}`;
     },
-    tooltip: () => `Git project: ${getGitRoot()} — click to open Source Control`,
+    tooltip: () => `Git project: ${getGitRoot()}`,
     onClick: () => sh.setActivity("git"),
   });
 

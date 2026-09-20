@@ -4,6 +4,7 @@
 
 import jediServerSource from "../lsp/jedi_server.py?raw";
 import { PYODIDE_VERSION, pyodideModuleUrl } from "./pyodideVersion";
+import { extractPipInstalls } from "./pipLines";
 
 interface RunFile {
   path: string;
@@ -74,6 +75,17 @@ function withLoadLock<T>(fn: () => Promise<T>): Promise<T> {
   const run = loadChain.then(fn, fn);
   loadChain = run.catch(() => undefined);
   return run;
+}
+
+/** Load micropip if needed (quietly). Required before any micropip.install. */
+async function ensureMicropip(): Promise<void> {
+  if (!pyodide) throw new Error("Python runtime is not ready yet");
+  await withLoadLock(() =>
+    pyodide.loadPackage("micropip", {
+      messageCallback: () => {},
+      errorCallback: () => {},
+    }),
+  );
 }
 
 /** Capture stdout+stderr of a Python snippet and re-emit it dimmed.
@@ -219,6 +231,25 @@ async function doRun(m: Extract<InMsg, { type: "run" }>) {
     pyodide.FS.writeFile(full, f.content);
   }
   const before = snapshot(WS);
+  // Colab-style `!pip install x` lines are stripped and installed with
+  // micropip (there is no real pip in the browser).
+  const pip = extractPipInstalls(m.code);
+  if (pip.packages.length) {
+    sysOut(`pip install ${pip.packages.join(" ")}`);
+    try {
+      await ensureMicropip();
+      await withLoadLock(() =>
+        runPythonDimmed(
+          `import micropip as __pyttig_micropip\nawait __pyttig_micropip.install(${JSON.stringify(pip.packages)})`,
+        ),
+      );
+      sysOut("ok");
+    } catch (err) {
+      sysOut(`pip install failed: ${err instanceof Error ? err.message : err}`);
+    }
+    outBuffer += "\n";
+  }
+
   // Best-effort auto-install of third-party imports from the Pyodide dist.
   // Pyodide's chatter is dimmed and kept apart from program output.
   let loadLines = 0;
@@ -228,7 +259,7 @@ async function doRun(m: Extract<InMsg, { type: "run" }>) {
   };
   try {
     await withLoadLock(() =>
-      pyodide.loadPackagesFromImports(m.code, {
+      pyodide.loadPackagesFromImports(pip.code, {
         messageCallback: loader,
         errorCallback: loader,
       }),
@@ -249,7 +280,7 @@ async function doRun(m: Extract<InMsg, { type: "run" }>) {
       } catch { /* ignore */ }
       runGlobals = pyodide.globals.get("dict")();
     }
-    const res = await pyodide.runPythonAsync(m.code, { filename: m.filename, globals: runGlobals });
+    const res = await pyodide.runPythonAsync(pip.code, { filename: m.filename, globals: runGlobals });
     res?.destroy?.();
   } catch (err) {
     emitOut();
@@ -369,12 +400,7 @@ async function doEnsurePackages(names: string[]) {
   }
   const installed: string[] = [];
   const failed: string[] = [];
-  await withLoadLock(() =>
-    pyodide.loadPackage("micropip", {
-      messageCallback: () => {},
-      errorCallback: () => {},
-    }),
-  );
+  await ensureMicropip();
   for (const n of need) {
     post({ event: "pkg-status", name: n, state: "installing" });
     try {

@@ -251,6 +251,12 @@ async function handleStdinRequest(runId: number) {
 }
 
 function onMissingModule(name: string) {
+  if (name === "pip" || name === "micropip") {
+    notify.warn("pip isn't available in the browser. Use `!pip install <package>` or the Packages view.", {
+      timeout: 12000,
+    });
+    return;
+  }
   notify.warn(`Module "${name}" is not installed.`, {
     actions: [
       {

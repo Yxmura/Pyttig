@@ -123,7 +123,13 @@ Chromebook-specific notes:
 - `F5` runs the file, `F9` runs selection, `# %%` cells work; stop, restart,
   persistent console namespace optional
 - xterm.js terminal with ANSI colors, clickable tracebacks, `input()` support
-- **Auto-install imports**: missing module → one-click `micropip` install → rerun
+- **Packages**: `!pip install <pkg>` lines work in your code (Colab muscle
+  memory), missing imports offer a one-click install, `requirements.txt` is
+  one click, and the Packages view has presets. Under the hood this is
+  [micropip](https://micropip.pyodide.org/): pure-Python wheels from PyPI plus
+  the packages prebuilt for Pyodide — there is no real pip in a browser (no
+  subprocesses, no compilers), so C-extension packages without a wasm build
+  can't be installed.
 - Packages panel: data-science / web / dev one-click stacks, install, uninstall
 - `matplotlib` figures captured into a Plots panel; program file writes sync back
 - `requests`/`urllib` work (patched to the browser stack); `await pyfetch(...)` too
